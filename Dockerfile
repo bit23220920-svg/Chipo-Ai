@@ -27,11 +27,3 @@ EXPOSE 3000
 # database isn't reachable yet, migrate.js exits non-zero and the container
 # restarts (see docker-compose.yml's restart policy) until MariaDB is up.
 CMD ["sh", "-c", "node migrate.js && node server.js"]
-# Missing Dockerfile structure to match your .dockerignore
-FROM node:18-alpine
-WORKDIR /app
-COPY C:\Users\Nalu Misebezi\Downloads\uni-chatbot-updated\package-lock.json
-RUN npm install
-COPY . .
-EXPOSE 3000
-CMD ["node", "server.js"]
