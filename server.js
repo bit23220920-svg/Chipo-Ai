@@ -1,0 +1,232 @@
+require('dotenv').config();
+const express = require('express');
+const path = require('path');
+
+const { askQuestion } = require('./ask.js');
+const tickets = require('./tickets.js');
+const faqs = require('./faqs.js');
+const departments = require('./departments.js');
+const staffAuth = require('./staffAuth.js');
+const chatlog = require('./chatlog.js');
+const systemLog = require('./systemLog.js');
+const { pool } = require('./db.js');
+const { requireStaffAuth, requireAdminStaff } = require('./middleware.js');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Used by Docker/hosting health checks (see docker-compose.yml) — confirms
+// the process is up AND can actually reach the database, not just that the
+// HTTP server is listening.
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(503).json({ status: 'error', error: 'Database unreachable.' });
+  }
+});
+
+// Small helper so every admin route doesn't repeat its own try/catch —
+// errors with a statusCode (validation errors from faqs.js/departments.js/
+// tickets.js) use that; anything unexpected is a 500.
+function handle(fn) {
+  return async (req, res) => {
+    try {
+      await fn(req, res);
+    } catch (err) {
+      console.error('ERROR:', err.cause || err);
+      if (err.statusCode) {
+        return res.status(err.statusCode).json({ error: err.message });
+      }
+      // Unexpected errors (including raw database errors we didn't
+      // explicitly handle in a module) should never leak internals to
+      // the client — log the detail server-side, return a plain message.
+      res.status(500).json({ error: 'Something went wrong.' });
+    }
+  };
+}
+
+// ==================== Student-facing: chat ====================
+
+app.post('/ask', handle(async (req, res) => {
+  const { question, history, sessionId } = req.body;
+
+  if (!question || !question.trim()) {
+    return res.status(400).json({ error: 'Question is required.' });
+  }
+
+  // Validate history so a malformed client request can't break the prompt builder
+  const safeHistory = Array.isArray(history)
+    ? history
+        .filter(h => h && typeof h.question === 'string' && typeof h.answer === 'string')
+        .slice(-3)
+    : [];
+
+  console.log(`\nReceived question: "${question}" (with ${safeHistory.length} prior turns)`);
+  const { answer, confidence, needsHuman, source, departmentId: faqDepartmentId } = await askQuestion(question, safeHistory);
+  let ticket = null;
+
+  if (needsHuman) {
+    const availableDepartments = await departments.listDepartments();
+    const normalizedQuestion = question.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const matchedDepartment = availableDepartments.find((department) => {
+      const normalizedName = department.name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      return normalizedName && normalizedQuestion.includes(normalizedName);
+    });
+    const routedDepartmentId = faqDepartmentId || (matchedDepartment && matchedDepartment.id) || null;
+    ticket = await tickets.createTicket({
+      name: req.body.name,
+      email: req.body.email,
+      question,
+      answer,
+      confidence,
+      reason: 'low_confidence',
+      departmentId: routedDepartmentId,
+    });
+    ticket.departmentName = availableDepartments.find((department) => department.id === routedDepartmentId)?.name || null;
+  }
+
+  res.json({ answer, confidence, needsHuman, ticket });
+
+  // Log after responding — a logging hiccup shouldn't delay or break the
+  // student's answer. Best-effort; failures are just logged server-side.
+  chatlog
+    .logMessage({ sessionId, question, answer, confidence, needsHuman, source })
+    .catch((err) => console.error('Could not log chat message:', err.message));
+}));
+
+// ==================== Student-facing: ticket lookup ====================
+
+// Check a single ticket by its reference number. No login required — the
+// reference itself (random, unguessable) is the credential, the same way a
+// parcel tracking number works.
+app.get('/tickets/:id', handle(async (req, res) => {
+  const ticket = await tickets.getTicket(req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'No ticket found with that reference.' });
+  res.json({ ticket });
+}));
+
+// ==================== Staff login ====================
+
+app.post('/admin/login', handle(async (req, res) => {
+  const { username, password } = req.body;
+  const staff = await staffAuth.verifyLogin(username, password);
+  if (!staff) return res.status(401).json({ error: 'Incorrect username or password.' });
+  const token = staffAuth.issueToken(staff);
+  res.json({ token, staff });
+}));
+
+app.get('/admin/me', requireStaffAuth, handle(async (req, res) => {
+  const staff = await staffAuth.getStaffProfile(req.staff.sub);
+  if (!staff) return res.status(401).json({ error: 'Staff account no longer exists.' });
+  res.json(staff);
+}));
+
+// ==================== Admin: tickets ====================
+
+app.get('/admin/tickets', requireStaffAuth, handle(async (req, res) => {
+  const { status } = req.query;
+  if (status && !tickets.VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `status must be one of: ${tickets.VALID_STATUSES.join(', ')}` });
+  }
+  res.json({ tickets: await tickets.listTickets({ status, departmentId: req.staff.departmentId, isAdmin: req.staff.isAdmin }) });
+}));
+
+app.patch('/admin/tickets/:id/status', requireStaffAuth, handle(async (req, res) => {
+  const { status } = req.body;
+  const ticket = await tickets.updateTicketStatus(req.params.id, status, req.staff.departmentId, req.staff.isAdmin);
+  if (!ticket) return res.status(404).json({ error: 'No ticket found with that reference.' });
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'ticket.status_change', detail: `${ticket.id} -> ${status}` })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.json({ ticket });
+}));
+
+// ==================== Admin: FAQs ====================
+
+app.get('/admin/faqs', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  res.json({ faqs: await faqs.listFaqs() });
+}));
+
+app.post('/admin/faqs', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const { question, answer, departmentId, isActive } = req.body;
+  const faq = await faqs.createFaq({ question, answer, departmentId, isActive });
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'faq.create', detail: faq.question })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.status(201).json({ faq });
+}));
+
+app.put('/admin/faqs/:id', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const { question, answer, departmentId, isActive } = req.body;
+  const faq = await faqs.updateFaq(req.params.id, { question, answer, departmentId, isActive });
+  if (!faq) return res.status(404).json({ error: 'No FAQ found with that id.' });
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'faq.update', detail: faq.question })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.json({ faq });
+}));
+
+app.delete('/admin/faqs/:id', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const deleted = await faqs.deleteFaq(req.params.id);
+  if (!deleted) return res.status(404).json({ error: 'No FAQ found with that id.' });
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'faq.delete', detail: req.params.id })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.status(204).end();
+}));
+
+// ==================== Admin: Departments ====================
+
+app.get('/admin/departments', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  res.json({ departments: await departments.listDepartments() });
+}));
+
+app.post('/admin/departments', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const { name, contactEmail } = req.body;
+  const dept = await departments.createDepartment({ name, contactEmail });
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'department.create', detail: dept.name })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.status(201).json({ department: dept });
+}));
+
+app.put('/admin/departments/:id', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const { name, contactEmail } = req.body;
+  const dept = await departments.updateDepartment(req.params.id, { name, contactEmail });
+  if (!dept) return res.status(404).json({ error: 'No department found with that id.' });
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'department.update', detail: dept.name })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.json({ department: dept });
+}));
+
+app.delete('/admin/departments/:id', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const deleted = await departments.deleteDepartment(req.params.id);
+  if (!deleted) return res.status(404).json({ error: 'No department found with that id.' });
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'department.delete', detail: req.params.id })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.status(204).end();
+}));
+
+// ==================== Admin: logs ====================
+
+// Staff activity feed (who changed what).
+app.get('/admin/logs/system', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  res.json({ events: await systemLog.listEvents({ limit: req.query.limit }) });
+}));
+
+// Chat activity (what students have been asking, and how confidently
+// Chipo answered) — the other half of "view system logs".
+app.get('/admin/logs/chat', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  res.json({ messages: await chatlog.listRecentMessages({ limit: req.query.limit }) });
+}));
+
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});

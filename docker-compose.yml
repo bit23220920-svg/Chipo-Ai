@@ -1,0 +1,83 @@
+# docker-compose.yml
+#
+# Three services:
+#   db    — MariaDB, with data persisted in a named volume.
+#   app   — this Node app; runs the schema migration on every start, then
+#           the server.
+#   caddy — reverse proxy that gets you HTTPS for free. Point your domain's
+#           DNS A record at this host and set DOMAIN in .env; Caddy handles
+#           the certificate automatically (via Let's Encrypt). For local
+#           testing, DOMAIN=localhost works too — Caddy just uses a locally-
+#           trusted cert instead of a real one.
+#
+# Usage:
+#   cp .env.example .env        # fill in GEMINI_API_KEY, JWT_SECRET, etc.
+#   docker compose up -d --build
+#   docker compose exec app node create-staff.js <username> <password>
+#
+# The app is also reachable directly at http://localhost:3000 (see the
+# "ports" line below) for local development without going through Caddy.
+
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      MARIADB_USER: ${MYSQL_USER:-chipo}
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+      MARIADB_DATABASE: ${MYSQL_DATABASE:-chipo}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-chipo}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-chipo}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000" # direct access, handy for local dev / debugging
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # embeddings-cache.json is already baked into the image (see Dockerfile's
+    # COPY . .) with whatever was cached at build time — no volume needed.
+    # Rebuild the image after adding/editing files in content/ so the cache
+    # regenerates for what changed.
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  mariadb_data:
+  caddy_data:
+  caddy_config:

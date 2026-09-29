@@ -1,0 +1,29 @@
+# Caddyfile
+#
+# Caddy automatically obtains and renews an HTTPS certificate (via Let's
+# Encrypt) for whatever domain is in {$DOMAIN} — set DOMAIN in .env, e.g.
+# DOMAIN=chipo.unilus.ac.zm, and point that domain's DNS A record at this
+# server's public IP before starting the stack.
+#
+# For local testing, leave DOMAIN unset (defaults to "localhost" in
+# docker-compose.yml) — Caddy detects that isn't a public domain and uses
+# a locally-trusted certificate instead of attempting Let's Encrypt.
+
+{$DOMAIN} {
+	reverse_proxy app:3000
+
+	encode gzip
+
+	header {
+		# Basic hardening — safe defaults for a same-origin app like this one.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
