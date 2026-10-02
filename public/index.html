@@ -52,8 +52,15 @@
   .staff-login button:disabled { opacity: .65; cursor: wait; }
   .portal-error { min-height: 18px; margin-top: 10px; color: var(--red); font-size: .82rem; }
 
-  .chat-launcher { position: fixed; right: 26px; bottom: 24px; z-index: 50; display: flex; align-items: center; gap: 10px; padding: 7px 16px 7px 8px; border: 0; border-radius: 40px; background: var(--green-deep); color: #fff; box-shadow: 0 8px 30px rgba(5,48,27,.25); cursor: pointer; font: inherit; font-weight: 650; }
-  .chat-launcher-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: var(--gold); color: var(--green-deep); }
+  .chat-launcher { position: fixed; right: 28px; bottom: 22px; z-index: 50; display: grid; place-items: center; width: 92px; height: 112px; padding: 0; border: 0; background: transparent; color: #fff; cursor: pointer; font: inherit; }
+  .chipo-mascot { width: 82px; height: 88px; overflow: visible; transform-origin: 50% 90%; animation: chipoFloat 3s ease-in-out infinite; filter: drop-shadow(0 8px 10px rgba(6,49,28,.22)); transition: transform .18s ease; }
+  .chat-launcher:hover .chipo-mascot { transform: scale(1.07) rotate(-3deg); }
+  .chat-launcher:active .chipo-mascot { transform: scale(.96); }
+  .chipo-pupil { transform: translate(var(--look-x, 0px), var(--look-y, 0px)); transition: transform .09s ease-out; }
+  .chipo-label { position: absolute; right: 94px; bottom: 18px; padding: 8px 11px; background: #0a4429; color: #fff; font-size: .78rem; font-weight: 650; white-space: nowrap; opacity: 0; transform: translateX(5px); transition: opacity .16s ease, transform .16s ease; pointer-events: none; }
+  .chat-launcher:hover .chipo-label, .chat-launcher:focus-visible .chipo-label { opacity: 1; transform: translateX(0); }
+  .chat-launcher:focus-visible { outline: 2px solid #c9a227; outline-offset: 3px; }
+  @keyframes chipoFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -5px; } }
   .chat-widget-panel { position: fixed; right: 24px; bottom: 82px; z-index: 49; display: none; width: min(420px, calc(100vw - 24px)); height: min(680px, calc(100vh - 110px)); overflow: hidden; border: 1px solid rgba(10,68,41,.18); border-radius: 12px; background: white; box-shadow: 0 18px 60px rgba(15,35,22,.24); }
   .chat-widget-panel.open { display: block; animation: widgetIn .18s ease-out; }
   .chat-widget-panel > .app { width: 100%; height: 100%; min-height: 0; }
@@ -86,10 +93,178 @@
     .portal { min-height: 100vh; grid-template-columns: 1fr; gap: 36px; padding: 36px 22px 110px; align-content: center; }
     .portal-copy h1 { margin: 28px 0 12px; font-size: 2.5rem; }
     .staff-login { padding: 24px; }
-    .chat-launcher { right: 16px; bottom: 16px; }
+    .chat-launcher { right: 12px; bottom: 12px; }
     .chat-widget-panel { right: 8px; bottom: 74px; width: calc(100vw - 16px); height: min(690px, calc(100vh - 90px)); }
     .chat-widget-panel .sidebar { position: absolute; }
     .chat-widget-panel .bubble-col { max-width: 88%; }
+  }
+
+  .portal-site { min-height: 100vh; background: #f7f8f4; }
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 28px;
+    min-height: 82px;
+    padding: 0 6vw;
+    border-bottom: 1px solid rgba(16, 62, 42, 0.08);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 16px rgba(15, 35, 22, 0.05);
+  }
+  .site-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #123e2d;
+    text-decoration: none;
+    font-weight: 750;
+    white-space: nowrap;
+  }
+  .site-brand-mark {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #c9a227 0%, #e6c85c 100%);
+    color: #0a4429;
+    font-size: 0.82rem;
+    font-weight: 800;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 8px 18px rgba(201, 162, 39, 0.25);
+  }
+  .site-brand small {
+    display: block;
+    margin-top: 3px;
+    color: #69786f;
+    font-size: .66rem;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+  }
+  .site-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .site-nav a {
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: #35483e;
+    font-size: .88rem;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  .site-nav a:hover,
+  .site-nav a:focus-visible {
+    background: #f1f5ef;
+    color: #0a4429;
+    transform: translateY(-1px);
+  }
+  .login-menu-wrap { position: relative; }
+  .login-menu-button {
+    min-height: 42px;
+    padding: 0 17px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #0a4429 0%, #0f5c37 100%);
+    color: #fff;
+    font: inherit;
+    font-size: .87rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 18px rgba(10, 68, 41, 0.18);
+  }
+  .login-menu { position: absolute; top: calc(100% + 10px); right: 0; z-index: 20; display: none; width: 218px; padding: 7px; border: 1px solid #dfe5de; background: #fff; box-shadow: 0 12px 30px rgba(12,43,27,.14); border-radius: 12px; }
+  .login-menu.open { display: grid; }
+  .login-menu button { padding: 11px 10px; border: 0; background: transparent; color: #1c3428; text-align: left; font: inherit; font-size: .87rem; cursor: pointer; border-radius: 8px; }
+  .login-menu button:hover { background: #f1f5ef; }
+  .portal-hero { position: relative; display: flex; align-items: center; min-height: clamp(560px, calc(100svh - 82px), 820px); overflow: hidden; background: #163b2d; }
+  .portal-hero::after { position: absolute; inset: 0; content: ''; background: linear-gradient(90deg, rgba(8,31,22,.83) 0%, rgba(8,31,22,.61) 43%, rgba(8,31,22,.16) 100%), linear-gradient(0deg, rgba(8,31,22,.32), transparent 38%); }
+  .hero-copy { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; max-width: 760px; padding: 72px 8vw 86px 10vw; }
+  .portal-hero .eyebrow { color: #f0d781; }
+  .hero-copy h1 { max-width: 700px; margin: 0; color: #fff; font: 500 3.7rem/1.06 Georgia, 'Times New Roman', serif; }
+  .hero-copy p { max-width: 530px; margin: 22px 0 28px; color: rgba(255,255,255,.88); font-size: 1rem; line-height: 1.7; }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  .action-primary, .action-secondary { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; text-decoration: none; font-size: .88rem; font-weight: 650; }
+  .action-primary { background: #0a4429; color: #fff; }
+  .action-secondary { border: 1px solid rgba(255,255,255,.7); color: #fff; }
+  .hero-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 45%; }
+  .quick-links { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid #e0e5de; background: #fff; }
+  .quick-link { min-height: 112px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 26px; border-right: 1px solid #e6ebe5; color: #183e2d; text-decoration: none; }
+  .quick-link:last-child { border-right: 0; }
+  .quick-link strong { display: block; font: 500 1.12rem Georgia, serif; }
+  .quick-link span { display: block; margin-top: 6px; color: #758178; font-size: .77rem; }
+  .quick-link b { color: #a17b21; font-size: 1.2rem; font-weight: 400; }
+  .portal-section { padding: 82px 10vw; scroll-margin-top: 24px; }
+  .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 30px; }
+  .section-heading h2 { max-width: 560px; margin: 0; color: #123e2d; font: 500 2.35rem/1.15 Georgia, 'Times New Roman', serif; }
+  .section-heading p { max-width: 390px; margin: 0; color: #66756c; font-size: .92rem; line-height: 1.6; }
+  #campus .section-heading p { color: #fff; }
+  .study-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #dce4dc; border: 1px solid #dce4dc; }
+  .study-item { min-height: 190px; padding: 26px; background: #fff; }
+  .study-item small { color: #a17b21; font-size: .7rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+  .study-item h3 { margin: 20px 0 8px; color: #163e2c; font: 500 1.35rem Georgia, serif; }
+  .study-item p { margin: 0; color: #66756c; font-size: .86rem; line-height: 1.6; }
+  .student-section { background: #eaf0e8; }
+  #campus.student-section { position: relative; isolation: isolate; overflow: hidden; background: transparent; }
+  #campus.student-section::before { position: absolute; inset: -6px; z-index: -1; content: ''; }
+  #campus.student-section::before { background: url('/images/Students.jpeg') center 44% / cover no-repeat; }
+  .student-profile { display: grid; grid-template-columns: minmax(220px,.7fr) 1.3fr; border: 1px solid #d7e0d7; background: #fff; }
+  .profile-identity { padding: 30px; background: #103e2a; color: #fff; }
+  .profile-avatar { display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 22px; border: 1px solid rgba(255,255,255,.42); border-radius: 50%; color: #f0d781; font: 500 1.45rem Georgia, serif; }
+  .profile-identity h3 { margin: 0 0 6px; font: 500 1.45rem Georgia, serif; }
+  .profile-identity p { margin: 0; color: #c5d2c9; font-size: .84rem; line-height: 1.6; }
+  .profile-details { padding: 30px; }
+  .demo-label { display: inline-block; padding: 5px 8px; background: #f5f0df; color: #80651c; font-size: .68rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+  .profile-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin: 24px 0; }
+  .profile-facts span { display: block; color: #7a867e; font-size: .72rem; }
+  .profile-facts strong { display: block; margin-top: 6px; color: #1d3d2d; font-size: .9rem; font-weight: 650; }
+  .profile-note { margin: 0; color: #67766d; font-size: .82rem; line-height: 1.6; }
+  .support-section { display: grid; grid-template-columns: .85fr 1.15fr; gap: 54px; align-items: start; }
+  .support-section > div > p { color: #66756c; font-size: .92rem; line-height: 1.7; }
+  .ticket-lookup { padding: 24px; border-top: 3px solid #c4a149; background: #fff; }
+  .ticket-lookup label { display: block; margin-bottom: 8px; color: #264637; font-size: .8rem; font-weight: 650; }
+  .ticket-lookup-row { display: flex; gap: 8px; }
+  .ticket-lookup input { min-width: 0; flex: 1; min-height: 44px; padding: 0 12px; border: 1px solid #d5ddd5; font: inherit; }
+  .ticket-lookup button { padding: 0 16px; border: 0; background: #0a4429; color: #fff; font: inherit; cursor: pointer; }
+  .ticket-result { min-height: 22px; margin-top: 12px; color: #53665a; font-size: .82rem; line-height: 1.5; }
+  .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 28px 10vw; background: #103e2a; color: #d4dfd7; font-size: .78rem; }
+  .site-footer a { color: #f0d781; text-decoration: none; }
+  .staff-login-dialog { width: min(420px, calc(100vw - 32px)); padding: 0; border: 1px solid #d8e1d8; background: #fff; box-shadow: 0 24px 80px rgba(5,30,17,.3); }
+  .staff-login-dialog::backdrop { background: rgba(10,30,19,.52); }
+  .staff-login { padding: 32px; background: #fff; border: 0; border-radius: 0; box-shadow: none; }
+  .dialog-head { display: flex; align-items: start; justify-content: space-between; gap: 15px; }
+  .dialog-close { width: 34px; height: 34px; border: 1px solid #e0e5df; background: #fff; color: #294837; font-size: 1.3rem; cursor: pointer; }
+  .assistant-embed .portal-site { display: none; }
+  .assistant-embed { width: 100%; height: 100%; min-height: 0; overflow: hidden; background: transparent; }
+  .assistant-embed .chat-launcher { right: 0; bottom: 0; width: 92px; height: 112px; padding: 0; }
+  .assistant-embed .chipo-mascot { width: 76px; height: 82px; }
+  .assistant-embed .chat-widget-panel { right: 0; bottom: 62px; }
+  .assistant-embed .chat-widget-panel.open { width: min(420px, calc(100vw - 24px)); height: min(680px, calc(100vh - 90px)); }
+  @media (max-width: 760px) {
+    .site-header { min-height: 70px; padding: 0 18px; }
+    .site-nav { display: none; }
+    .portal-hero { min-height: min(760px, calc(100svh - 70px)); }
+    .portal-hero::after { background: linear-gradient(90deg, rgba(8,31,22,.77), rgba(8,31,22,.32)), linear-gradient(0deg, rgba(8,31,22,.42), transparent 60%); }
+    .hero-copy { padding: 52px 24px 72px; }
+    .hero-copy h1 { font-size: 2.65rem; }
+    .hero-image { object-position: 58% center; }
+    .quick-links { grid-template-columns: repeat(2, 1fr); }
+    .quick-link { min-height: 90px; padding: 16px; border-bottom: 1px solid #e6ebe5; }
+    .portal-section { padding: 56px 22px; }
+    .section-heading { display: block; }
+    .section-heading h2 { margin-bottom: 14px; font-size: 2rem; }
+    .study-grid { grid-template-columns: 1fr; }
+    .study-item { min-height: 0; }
+    .student-profile, .support-section { grid-template-columns: 1fr; gap: 0; }
+    .profile-facts { gap: 18px 12px; }
+    .site-footer { align-items: flex-start; flex-direction: column; padding: 25px 22px; }
+    .assistant-embed .chat-widget-panel.open { right: 8px; bottom: 72px; width: calc(100vw - 16px); height: min(690px, calc(100vh - 84px)); }
   }
 
   .app {
@@ -719,26 +894,150 @@
 </head>
 <body>
 
-<main class="portal">
-  <section class="portal-copy" aria-label="University assistant">
-    <div class="portal-brand"><span class="portal-mark">UL</span><span>University of Lusaka</span></div>
-    <h1>One place for student support.</h1>
-    <p>Staff can sign in to review department tickets. Students and visitors can ask Chipo a question without an account.</p>
-  </section>
-  <form class="staff-login" id="portalLoginForm">
-    <h2>Staff sign in</h2>
-    <p>Access your department’s support tickets.</p>
-    <label for="portalUsername">Username</label>
-    <input id="portalUsername" name="username" autocomplete="username" required>
-    <label for="portalPassword">Password</label>
-    <input id="portalPassword" name="password" type="password" autocomplete="current-password" required>
-    <button id="portalLoginButton" type="submit">Sign in to staff tickets</button>
-    <div class="portal-error" id="portalLoginError" role="alert"></div>
-  </form>
-</main>
+<div class="portal-site">
+  <header class="site-header">
+    <a class="site-brand" href="#home" aria-label="University of Lusaka home">
+      <span class="site-brand-mark" aria-hidden="true">UL</span>
+      <span>University of Lusaka<small>Passion for quality education</small></span>
+    </a>
+    <nav class="site-nav" aria-label="Main navigation">
+      <a href="#study">Study</a>
+      <a href="#campus">Campus life</a>
+      <a href="#student">Student hub</a>
+      <a href="#support">Support</a>
+    </nav>
+    <div class="login-menu-wrap">
+      <button class="login-menu-button" id="loginMenuButton" type="button" aria-expanded="false" aria-controls="loginMenu">Log in <span aria-hidden="true">⌄</span></button>
+      <div class="login-menu" id="loginMenu">
+        <button type="button" id="openStaffLogin">Staff login</button>
+        <button type="button" id="openStudentProfile">Student profile · demo</button>
+      </div>
+    </div>
+  </header>
 
-<button class="chat-launcher" id="chatLauncher" type="button" aria-expanded="false" aria-controls="chatWidgetPanel">
-  <span class="chat-launcher-mark" aria-hidden="true">C</span><span>Ask Chipo</span>
+  <main id="home">
+    <section class="portal-hero">
+      <div class="hero-copy">
+        <div class="eyebrow">University of Lusaka</div>
+        <h1>Make your next chapter count.</h1>
+        <p>Find your programme, discover campus life and get the support you need to move forward. Chipo, your student assistant, is here whenever you need a hand.</p>
+        <div class="hero-actions">
+          <a class="action-primary" href="#study">Explore programmes <span aria-hidden="true">&nbsp;→</span></a>
+          <a class="action-secondary" href="#student">Visit student hub</a>
+        </div>
+      </div>
+      <img class="hero-image" id="heroImage" src="/images/Homepage.jpg" data-placeholder="https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1400&q=85" alt="UNILUS graduates celebrating at their graduation ceremony">
+    </section>
+
+    <nav class="quick-links" aria-label="Popular destinations">
+      <a class="quick-link" href="#study"><span><strong>Find your programme</strong><span>Explore areas of study</span></span><b aria-hidden="true">↗</b></a>
+      <a class="quick-link" href="#campus"><span><strong>Campus life</strong><span>See what student life offers</span></span><b aria-hidden="true">↗</b></a>
+      <a class="quick-link" href="#student"><span><strong>Student hub</strong><span>Open a sample student profile</span></span><b aria-hidden="true">↗</b></a>
+      <a class="quick-link" href="#support"><span><strong>Get support</strong><span>Track a staff support ticket</span></span><b aria-hidden="true">↗</b></a>
+    </nav>
+
+    <section class="portal-section" id="study">
+      <div class="section-heading">
+        <div><div class="eyebrow">Learning with purpose</div><h2>Choose a direction. Build what comes next.</h2></div>
+        <p>Explore a few of the disciplines represented at UNILUS. Ask Chipo about admissions, entry requirements or the right department for your question.</p>
+      </div>
+      <div class="study-grid">
+        <article class="study-item"><small>01 · Business</small><h3>Business &amp; management</h3><p>Develop the practical skills and perspective to lead organisations and ideas.</p></article>
+        <article class="study-item"><small>02 · Technology</small><h3>Computing &amp; technology</h3><p>Build a foundation for a changing digital world, from systems to software.</p></article>
+        <article class="study-item"><small>03 · Public service</small><h3>Law &amp; social sciences</h3><p>Study the institutions and communities shaping Zambia and the region.</p></article>
+      </div>
+    </section>
+
+    <section class="portal-section student-section" id="campus">
+      <div class="section-heading">
+        <div><div class="eyebrow">Beyond the lecture hall</div><h2>A campus shaped by ambition and community.</h2></div>
+        <p>University is a place to learn with others, find your voice and turn ideas into action. Start with the student hub or ask Chipo where to go next.</p>
+      </div>
+      <div class="study-grid">
+        <article class="study-item"><small>Connect</small><h3>Find your people</h3><p>Meet fellow students and discover the communities that make campus feel like yours.</p></article>
+        <article class="study-item"><small>Grow</small><h3>Make room for new ideas</h3><p>Bring curiosity to class, campus and the work you hope to do after graduation.</p></article>
+        <article class="study-item"><small>Get help</small><h3>Support when you need it</h3><p>Chipo can answer common questions and connect unresolved issues with staff.</p></article>
+      </div>
+    </section>
+
+    <section class="portal-section" id="student">
+      <div class="section-heading">
+        <div><div class="eyebrow">Student hub · sample account</div><h2>A student view, ready to explore.</h2></div>
+        <p>This is a demo profile for preview only. It is not a real student account and does not require a sign-in.</p>
+      </div>
+      <article class="student-profile">
+        <div class="profile-identity">
+          <div class="profile-avatar" aria-hidden="true">TP</div>
+          <h3>Thandiwe Phiri</h3>
+          <p>Undergraduate student<br>University of Lusaka</p>
+        </div>
+        <div class="profile-details">
+          <span class="demo-label">Demo student profile</span>
+          <div class="profile-facts">
+            <div><span>Student number</span><strong>UL-DEMO-2026</strong></div>
+            <div><span>Programme</span><strong>BSc Computer Science</strong></div>
+            <div><span>Year of study</span><strong>Year 2</strong></div>
+            <div><span>Current status</span><strong>Enrolled · sample data</strong></div>
+          </div>
+          <p class="profile-note">This profile contains fictional sample information. Use Chipo for general university questions; do not enter private student or account information in the demo.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="portal-section support-section student-section" id="support">
+      <div><div class="eyebrow">Student support</div><h2>Still need a person?</h2><p>Ask Chipo first. If your question needs staff attention, the assistant can create a support ticket. Enter its reference below to check its current status.</p></div>
+      <form class="ticket-lookup" id="ticketLookupForm">
+        <label for="ticketReference">Track a support ticket</label>
+        <div class="ticket-lookup-row"><input id="ticketReference" name="reference" placeholder="Enter ticket reference" required><button type="submit">Check status</button></div>
+        <div class="ticket-result" id="ticketResult" role="status" aria-live="polite"></div>
+      </form>
+    </section>
+  </main>
+  <footer class="site-footer"><span>University of Lusaka · Passion for quality education</span><a href="#home">Back to top ↑</a></footer>
+
+  <dialog class="staff-login-dialog" id="staffLoginDialog">
+    <form class="staff-login" id="portalLoginForm">
+      <div class="dialog-head"><div><div class="eyebrow">Staff access</div><h2>Sign in to tickets</h2><p>Access your department’s support queue.</p></div><button class="dialog-close" id="closeStaffLogin" type="button" aria-label="Close staff login">×</button></div>
+
+      <div id="portalLoginFields">
+        <label for="portalUsername">Username</label>
+        <input id="portalUsername" name="username" autocomplete="username" required>
+        <label for="portalPassword">Password</label>
+        <input id="portalPassword" name="password" type="password" autocomplete="current-password" required>
+      </div>
+
+      <div id="portalSignupFields" style="display:none;">
+        <label for="portalSignupUsername">New username</label>
+        <input id="portalSignupUsername" name="signupUsername" autocomplete="username">
+        <label for="portalSignupPassword">Create password</label>
+        <input id="portalSignupPassword" name="signupPassword" type="password" autocomplete="new-password">
+        <label for="portalSignupDepartment">Department</label>
+        <select id="portalSignupDepartment" name="signupDepartment" style="width:100%; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(19,51,41,0.2); font: inherit;"></select>
+      </div>
+
+      <button type="button" id="togglePortalSignup" class="secondary-btn" style="width:100%; margin: 0 0 12px; border: 1px solid rgba(19,51,41,0.2); background: #fff; color: #0d3c28; border-radius: 8px; padding: 10px 12px; font-weight: 600; cursor: pointer;">Create account</button>
+      <button id="portalLoginButton" type="submit">Sign in to staff tickets</button>
+      <button id="portalSignupButton" type="button" style="display:none; width:100%; margin-top: 12px;">Create staff account</button>
+      <div class="portal-error" id="portalLoginError" role="alert"></div>
+    </form>
+  </dialog>
+</div>
+
+<button class="chat-launcher" id="chatLauncher" type="button" aria-label="Ask Chipo" aria-expanded="false" aria-controls="chatWidgetPanel">
+  <svg class="chipo-mascot" id="chipoMascot" viewBox="0 0 100 108" role="img" aria-labelledby="chipoTitle">
+    <title id="chipoTitle">Chipo, your student assistant</title>
+    <path d="M50 29v11" stroke="#c9a227" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="50" cy="23" r="6" fill="#c9a227"/>
+    <rect x="5" y="58" width="13" height="19" rx="5" fill="#c9a227"/>
+    <rect x="82" y="58" width="13" height="19" rx="5" fill="#c9a227"/>
+    <path d="M34 40h32c9 0 15 7 15 16v21c0 9-6 15-15 15H56l-6 8-6-8H34c-9 0-15-6-15-15V56c0-9 6-16 15-16Z" fill="#c9a227"/>
+    <ellipse cx="41" cy="59" rx="7" ry="9" fill="#fff"/>
+    <ellipse cx="63" cy="59" rx="7" ry="9" fill="#fff"/>
+    <ellipse class="chipo-pupil" cx="42" cy="60" rx="3.2" ry="4.7" fill="#172923"/>
+    <ellipse class="chipo-pupil" cx="64" cy="60" rx="3.2" ry="4.7" fill="#172923"/>
+    <path d="M43 76c4 5 10 5 14 0" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+  </svg>
+  <span class="chipo-label" aria-hidden="true">Ask Chipo</span>
 </button>
 <section class="chat-widget-panel" id="chatWidgetPanel" aria-label="Chipo student assistant">
   <button class="widget-close" id="chatWidgetClose" type="button" aria-label="Close Chipo chat">×</button>
@@ -832,6 +1131,13 @@
 </section>
 
 <script>
+  const heroImage = document.getElementById('heroImage');
+  heroImage.addEventListener('error', () => {
+    if (heroImage.dataset.usingPlaceholder) return;
+    heroImage.dataset.usingPlaceholder = 'true';
+    heroImage.src = heroImage.dataset.placeholder;
+  });
+
   const chatInner = document.getElementById('chatInner');
   const chatScroll = document.getElementById('chatScroll');
   const questionEl = document.getElementById('question');
@@ -1259,6 +1565,78 @@
   const portalLoginForm = document.getElementById('portalLoginForm');
   const portalLoginButton = document.getElementById('portalLoginButton');
   const portalLoginError = document.getElementById('portalLoginError');
+  const portalSignupButton = document.getElementById('portalSignupButton');
+  const portalSignupFields = document.getElementById('portalSignupFields');
+  const portalLoginFields = document.getElementById('portalLoginFields');
+  const togglePortalSignup = document.getElementById('togglePortalSignup');
+  const portalSignupDepartment = document.getElementById('portalSignupDepartment');
+
+  async function loadPortalDepartments() {
+    try {
+      const response = await fetch('/admin/departments/public');
+      const data = await response.json();
+      const departments = data.departments || [];
+      portalSignupDepartment.innerHTML = '<option value="">Choose a department</option>' + departments.map((dept) => `
+        <option value="${dept.id}">${dept.name}</option>
+      `).join('');
+      if (!departments.length) {
+        portalSignupDepartment.innerHTML = '<option value="">No departments available yet</option>';
+      }
+    } catch (err) {
+      portalSignupDepartment.innerHTML = '<option value="">Departments unavailable</option>';
+    }
+  }
+
+  function setPortalSignupMode(enabled) {
+    portalSignupFields.style.display = enabled ? 'block' : 'none';
+    portalLoginFields.style.display = enabled ? 'none' : 'block';
+    portalLoginButton.style.display = enabled ? 'none' : 'block';
+    portalSignupButton.style.display = enabled ? 'block' : 'none';
+    togglePortalSignup.textContent = enabled ? 'Back to sign in' : 'Create account';
+    portalLoginError.textContent = '';
+    if (enabled) loadPortalDepartments();
+  }
+
+  togglePortalSignup.addEventListener('click', () => {
+    const enabled = portalSignupFields.style.display === 'none';
+    setPortalSignupMode(enabled);
+  });
+
+  portalSignupButton.addEventListener('click', async () => {
+    const username = document.getElementById('portalSignupUsername').value.trim();
+    const password = document.getElementById('portalSignupPassword').value;
+    const departmentId = document.getElementById('portalSignupDepartment').value;
+
+    if (!username || !password || !departmentId) {
+      portalLoginError.textContent = 'Choose a username, password, and department.';
+      return;
+    }
+
+    portalSignupButton.disabled = true;
+    portalSignupButton.textContent = 'Creating...';
+    portalLoginError.textContent = '';
+
+    try {
+      const response = await fetch('/admin/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, departmentId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Account creation failed.');
+
+      document.getElementById('portalUsername').value = username;
+      document.getElementById('portalPassword').value = password;
+      setPortalSignupMode(false);
+      portalLoginError.textContent = 'Account created. You can sign in now.';
+    } catch (error) {
+      portalLoginError.textContent = error.message || 'Could not create account.';
+    } finally {
+      portalSignupButton.disabled = false;
+      portalSignupButton.textContent = 'Create staff account';
+    }
+  });
+
   portalLoginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     portalLoginButton.disabled = true;
@@ -1285,14 +1663,80 @@
     }
   });
 
+  const loginMenuButton = document.getElementById('loginMenuButton');
+  const loginMenu = document.getElementById('loginMenu');
+  const staffLoginDialog = document.getElementById('staffLoginDialog');
+  loginMenuButton.addEventListener('click', () => {
+    const isOpen = loginMenu.classList.toggle('open');
+    loginMenuButton.setAttribute('aria-expanded', String(isOpen));
+  });
+  document.getElementById('openStaffLogin').addEventListener('click', () => {
+    loginMenu.classList.remove('open');
+    loginMenuButton.setAttribute('aria-expanded', 'false');
+    staffLoginDialog.showModal();
+  });
+  document.getElementById('closeStaffLogin').addEventListener('click', () => staffLoginDialog.close());
+  document.getElementById('openStudentProfile').addEventListener('click', () => {
+    loginMenu.classList.remove('open');
+    loginMenuButton.setAttribute('aria-expanded', 'false');
+    document.getElementById('student').scrollIntoView({ behavior: 'smooth' });
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.login-menu-wrap')) {
+      loginMenu.classList.remove('open');
+      loginMenuButton.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  document.getElementById('ticketLookupForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const reference = document.getElementById('ticketReference').value.trim();
+    const result = document.getElementById('ticketResult');
+    result.textContent = 'Looking up ticket…';
+    try {
+      const response = await fetch('/tickets/' + encodeURIComponent(reference));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not find that ticket.');
+      const status = data.ticket.status.replace('_', ' ');
+      result.textContent = `Ticket ${data.ticket.id}: ${status}.`;
+    } catch (error) {
+      result.textContent = error.message || 'Could not look up that ticket.';
+    }
+  });
+
+  const isAssistantEmbed = new URLSearchParams(window.location.search).get('assistant') === 'embed';
+  if (isAssistantEmbed) document.body.classList.add('assistant-embed');
+
   const chatLauncher = document.getElementById('chatLauncher');
   const chatWidgetPanel = document.getElementById('chatWidgetPanel');
   const chatWidgetClose = document.getElementById('chatWidgetClose');
   function toggleChatWidget(open) {
     chatWidgetPanel.classList.toggle('open', open);
     chatLauncher.setAttribute('aria-expanded', String(open));
+    if (isAssistantEmbed) window.parent.postMessage({ type: open ? 'chipo-widget-open' : 'chipo-widget-close' }, window.location.origin);
     if (open) questionEl.focus();
   }
+  const chipoMascot = document.getElementById('chipoMascot');
+  function makeChipoLookAt(clientX, clientY, viewportWidth, viewportHeight) {
+    const bounds = chipoMascot.getBoundingClientRect();
+    const centerX = bounds.left + bounds.width / 2;
+    const centerY = bounds.top + bounds.height / 2;
+    const horizontal = Math.max(-2, Math.min(2, (clientX - centerX) / Math.max(1, viewportWidth / 2) * 3));
+    const vertical = Math.max(-2, Math.min(2, (clientY - centerY) / Math.max(1, viewportHeight / 2) * 3));
+    chipoMascot.style.setProperty('--look-x', `${horizontal.toFixed(1)}px`);
+    chipoMascot.style.setProperty('--look-y', `${vertical.toFixed(1)}px`);
+  }
+  document.addEventListener('pointermove', (event) => {
+    makeChipoLookAt(event.clientX, event.clientY, window.innerWidth, window.innerHeight);
+  }, { passive: true });
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin || event.data?.type !== 'chipo-pointer') return;
+    makeChipoLookAt(event.data.x, event.data.y, event.data.width, event.data.height);
+  });
+  document.addEventListener('pointerleave', () => {
+    chipoMascot.style.setProperty('--look-x', '0px');
+    chipoMascot.style.setProperty('--look-y', '0px');
+  });
   chatLauncher.addEventListener('click', () => toggleChatWidget(!chatWidgetPanel.classList.contains('open')));
   chatWidgetClose.addEventListener('click', () => toggleChatWidget(false));
   document.addEventListener('keydown', (event) => {

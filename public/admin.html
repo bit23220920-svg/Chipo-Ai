@@ -111,6 +111,19 @@
   .btn-primary:hover { background: var(--green-bright); }
   .btn-primary:disabled { background: #b7bdb8; cursor: not-allowed; }
 
+  .secondary-link {
+    width: 100%;
+    margin-top: 10px;
+    border: 1px solid rgba(10,68,41,0.2);
+    background: transparent;
+    color: var(--green-deep);
+    border-radius: 8px;
+    padding: 9px 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
   .login-error {
     color: var(--red);
     font-size: 0.82rem;
@@ -175,13 +188,23 @@
   .topbar {
     padding: 18px 28px;
     border-bottom: 1px solid var(--border);
-    background: var(--panel);
+    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(246,245,241,0.92));
     display: flex;
     align-items: center;
     justify-content: space-between;
+    box-shadow: inset 0 -1px 0 rgba(10, 68, 41, 0.04);
   }
-  .topbar h2 { margin: 0; font-size: 1.15rem; }
-  .topbar p { margin: 3px 0 0; font-size: 0.8rem; color: var(--text-muted); }
+  .topbar h2 {
+    margin: 0;
+    font-size: 1.18rem;
+    letter-spacing: -0.02em;
+    color: var(--green-deep);
+  }
+  .topbar p {
+    margin: 4px 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
 
   .content { padding: 24px 28px 60px; max-width: 1000px; }
 
@@ -317,6 +340,9 @@
   .toast.error { background: var(--red); }
   .toast.visible { display: block; }
 
+  .assistant-frame { position: fixed; right: 14px; bottom: 14px; z-index: 60; width: 200px; height: 60px; border: 0; background: transparent; transition: width .18s ease, height .18s ease, right .18s ease, bottom .18s ease; }
+  .assistant-frame.expanded { right: 0; bottom: 0; width: 100vw; height: 100vh; }
+
   @media (max-width: 720px) {
     .sidebar { width: 72px; padding: 16px 8px; }
     .brand-text, .nav-item span.label, .sidebar-footer .staff-name { display: none; }
@@ -341,7 +367,28 @@
         <label for="loginPassword">Password</label>
         <input id="loginPassword" type="password" autocomplete="current-password" />
       </div>
-      <button class="btn-primary" id="loginBtn" type="button">Sign in</button>
+
+      <div id="loginFields">
+        <button class="btn-primary" id="loginBtn" type="button">Sign in</button>
+      </div>
+
+      <div id="signupFields" style="display:none;">
+        <div class="field">
+          <label for="signupUsername">New username</label>
+          <input id="signupUsername" type="text" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="signupPassword">Create password</label>
+          <input id="signupPassword" type="password" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="signupDepartment">Department</label>
+          <select id="signupDepartment" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;font-family:inherit;background:#fff;"></select>
+        </div>
+        <button class="btn-primary" id="signupBtn" type="button">Create account</button>
+      </div>
+
+      <button class="secondary-link" id="toggleSignupBtn" type="button">Create account</button>
       <div class="login-error" id="loginError"></div>
     </div>
   </div>
@@ -363,6 +410,7 @@
       </div>
       <div class="nav-item" data-tab="faqs"><span class="label">FAQs</span></div>
       <div class="nav-item" data-tab="departments"><span class="label">Departments</span></div>
+      <div class="nav-item" data-tab="staff"><span class="label">Staff accounts</span></div>
       <div class="nav-item" data-tab="logs"><span class="label">Activity Log</span></div>
 
       <div class="sidebar-footer">
@@ -418,6 +466,18 @@
           </div>
         </div>
 
+        <!-- ---------- Staff accounts tab ---------- -->
+        <div class="tab-panel" id="tab-staff" style="display:none;">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Staff accounts</h3>
+              <button class="btn-add" id="newStaffBtn" type="button">+ Create account</button>
+            </div>
+            <div id="staffFormWrap"></div>
+            <div id="staffListWrap"></div>
+          </div>
+        </div>
+
         <!-- ---------- Logs tab ---------- -->
         <div class="tab-panel" id="tab-logs" style="display:none;">
           <div class="panel">
@@ -434,8 +494,33 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <iframe class="assistant-frame" id="assistantFrame" src="/index.html?assistant=embed" title="Ask Chipo, the student assistant"></iframe>
 
 <script>
+  const assistantFrame = document.getElementById('assistantFrame');
+  let pointerForwardScheduled = false;
+  let latestPointer = null;
+  document.addEventListener('pointermove', (event) => {
+    latestPointer = { x: event.clientX, y: event.clientY };
+    if (pointerForwardScheduled) return;
+    pointerForwardScheduled = true;
+    requestAnimationFrame(() => {
+      pointerForwardScheduled = false;
+      if (!assistantFrame.contentWindow || !latestPointer) return;
+      assistantFrame.contentWindow.postMessage({
+        type: 'chipo-pointer',
+        ...latestPointer,
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }, window.location.origin);
+    });
+  }, { passive: true });
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin) return;
+    if (event.data?.type === 'chipo-widget-open') assistantFrame.classList.add('expanded');
+    if (event.data?.type === 'chipo-widget-close') assistantFrame.classList.remove('expanded');
+  });
+
   // ---------- State ----------
   let token = localStorage.getItem('chipo_staff_token') || null;
   let currentTab = 'tickets';
@@ -452,6 +537,12 @@
   const loginPassword = document.getElementById('loginPassword');
   const loginBtn = document.getElementById('loginBtn');
   const loginError = document.getElementById('loginError');
+  const signupFields = document.getElementById('signupFields');
+  const signupUsername = document.getElementById('signupUsername');
+  const signupPassword = document.getElementById('signupPassword');
+  const signupDepartment = document.getElementById('signupDepartment');
+  const signupBtn = document.getElementById('signupBtn');
+  const toggleSignupBtn = document.getElementById('toggleSignupBtn');
   const staffNameEl = document.getElementById('staffName');
   const logoutBtn = document.getElementById('logoutBtn');
   const pageTitle = document.getElementById('pageTitle');
@@ -462,6 +553,7 @@
     tickets: { title: 'Tickets', sub: 'Escalated questions waiting on a staff reply' },
     faqs: { title: 'FAQs', sub: 'Answers Chipo treats as authoritative, on top of the PDF library' },
     departments: { title: 'Departments', sub: 'Who FAQs and tickets belong to' },
+    staff: { title: 'Staff accounts', sub: 'Staff access by department' },
     logs: { title: 'Activity Log', sub: 'What staff have changed, and what students have been asking' },
   };
 
@@ -545,6 +637,70 @@
     }
   }
 
+  async function loadDepartmentOptionsForSignup() {
+    try {
+      const data = await fetch('/admin/departments/public').then((res) => res.json());
+      const departments = data.departments || [];
+      signupDepartment.innerHTML = '<option value="">Choose a department</option>' + departments.map((department) =>
+        '<option value="' + department.id + '">' + escapeHtml(department.name) + '</option>'
+      ).join('');
+      if (!departments.length) {
+        signupDepartment.innerHTML = '<option value="">No departments found yet</option>';
+      }
+    } catch (err) {
+      signupDepartment.innerHTML = '<option value="">Departments unavailable</option>';
+    }
+  }
+
+  function toggleSignupMode(showSignup) {
+    signupFields.style.display = showSignup ? 'block' : 'none';
+    toggleSignupBtn.textContent = showSignup ? 'Back to sign in' : 'Create account';
+    document.getElementById('loginFields').style.display = showSignup ? 'none' : 'block';
+    if (!showSignup) {
+      signupUsername.value = '';
+      signupPassword.value = '';
+      signupDepartment.value = '';
+    } else {
+      loadDepartmentOptionsForSignup();
+    }
+    loginError.textContent = '';
+  }
+
+  async function createStaffAccount() {
+    const username = signupUsername.value.trim();
+    const password = signupPassword.value;
+    const departmentId = signupDepartment.value;
+    if (!username || !password || !departmentId) {
+      loginError.textContent = 'Enter a username, password, and department to create an account.';
+      return;
+    }
+
+    signupBtn.disabled = true;
+    signupBtn.textContent = 'Creating...';
+    loginError.textContent = '';
+
+    try {
+      const response = await fetch('/admin/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, departmentId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Account creation failed.');
+
+      loginUsername.value = username;
+      loginPassword.value = password;
+      toggleSignupMode(false);
+      loginError.textContent = 'Account created. You can sign in now.';
+      showToast('Staff account created successfully.', false);
+    } catch (err) {
+      loginError.textContent = err.message;
+    } finally {
+      signupBtn.disabled = false;
+      signupBtn.textContent = 'Create account';
+    }
+  }
+
   function logout() {
     token = null;
     localStorage.removeItem('chipo_staff_token');
@@ -582,7 +738,13 @@
 
   loginBtn.addEventListener('click', login);
   loginPassword.addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+  signupBtn.addEventListener('click', createStaffAccount);
+  toggleSignupBtn.addEventListener('click', () => {
+    const showSignup = signupFields.style.display === 'none';
+    toggleSignupMode(showSignup);
+  });
   logoutBtn.addEventListener('click', logout);
+  toggleSignupMode(false);
 
   // ---------- Tab navigation ----------
   document.querySelectorAll('.nav-item[data-tab]').forEach((el) => {
@@ -603,6 +765,7 @@
     if (tab === 'tickets') loadTickets();
     if (tab === 'faqs') loadFaqs();
     if (tab === 'departments') loadDepartments();
+    if (tab === 'staff') loadStaff();
     if (tab === 'logs') loadLogs();
   }
 
@@ -820,6 +983,7 @@
       '<div class="form-panel">' +
         '<div class="form-row"><label>Name</label><input id="deptName" type="text" value="' + escapeHtml(existing ? existing.name : '') + '" /></div>' +
         '<div class="form-row"><label>Contact email</label><input id="deptEmail" type="email" value="' + escapeHtml(existing ? (existing.contactEmail || '') : '') + '" /></div>' +
+        '<div class="form-row"><label>Ticket routing keywords</label><input id="deptKeywords" type="text" value="' + escapeHtml(existing ? (existing.routingKeywords || []).join(', ') : '') + '" placeholder="e.g. registration, transcripts, exam results" /><small class="cell-muted">Separate terms or phrases with commas. FAQ-owned tickets still go to their FAQ department.</small></div>' +
         '<div class="form-actions">' +
           '<button class="btn-save" id="deptSaveBtn" type="button">' + (existing ? 'Save changes' : 'Create department') + '</button>' +
           '<button class="btn-cancel" id="deptCancelBtn" type="button">Cancel</button>' +
@@ -834,6 +998,7 @@
   async function saveDept(id) {
     const name = document.getElementById('deptName').value.trim();
     const contactEmail = document.getElementById('deptEmail').value.trim();
+    const routingKeywords = document.getElementById('deptKeywords').value.split(',').map((keyword) => keyword.trim()).filter(Boolean);
     const errorEl = document.getElementById('deptFormError');
     const btn = document.getElementById('deptSaveBtn');
 
@@ -848,10 +1013,10 @@
 
     try {
       if (id) {
-        await api('PUT', '/admin/departments/' + id, { name, contactEmail });
+        await api('PUT', '/admin/departments/' + id, { name, contactEmail, routingKeywords });
         showToast('Department updated.');
       } else {
-        await api('POST', '/admin/departments', { name, contactEmail });
+        await api('POST', '/admin/departments', { name, contactEmail, routingKeywords });
         showToast('Department created.');
       }
       document.getElementById('deptFormWrap').innerHTML = '';
@@ -883,6 +1048,7 @@
             '<div>' +
               '<p class="list-item-title">' + escapeHtml(d.name) + '</p>' +
               '<p class="list-item-body">' + escapeHtml(d.contactEmail || 'No contact email on file') + '</p>' +
+              (d.routingKeywords && d.routingKeywords.length ? '<div class="list-item-meta">' + d.routingKeywords.map((keyword) => '<span class="tag">' + escapeHtml(keyword) + '</span>').join('') + '</div>' : '') +
             '</div>' +
             '<div class="item-actions">' +
               '<button class="icon-btn" data-edit="' + d.id + '">Edit</button>' +
@@ -912,6 +1078,72 @@
           }
         });
       });
+    } catch (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message) + '</div>';
+    }
+  }
+
+  // ================= Staff accounts =================
+
+  document.getElementById('newStaffBtn').addEventListener('click', async () => {
+    if (!departmentsCache.length) {
+      try { departmentsCache = (await api('GET', '/admin/departments')).departments; } catch (err) { showToast(err.message, true); return; }
+    }
+    renderStaffForm();
+  });
+
+  function renderStaffForm() {
+    const wrap = document.getElementById('staffFormWrap');
+    const deptOptions = '<option value="">Choose a department</option>' + departmentsCache.map((department) =>
+      '<option value="' + department.id + '">' + escapeHtml(department.name) + '</option>'
+    ).join('');
+    wrap.innerHTML = '<div class="form-panel">' +
+      '<div class="form-row"><label for="staffUsername">Username</label><input id="staffUsername" type="text" autocomplete="off" /></div>' +
+      '<div class="form-row"><label for="staffPassword">Temporary password</label><input id="staffPassword" type="password" autocomplete="new-password" minlength="8" /></div>' +
+      '<div class="form-row"><label for="staffDepartment">Department</label><select id="staffDepartment">' + deptOptions + '</select></div>' +
+      '<div class="form-actions"><button class="btn-save" id="staffSaveBtn" type="button">Create account</button><button class="btn-cancel" id="staffCancelBtn" type="button">Cancel</button></div>' +
+      '<div class="form-error" id="staffFormError"></div></div>';
+    document.getElementById('staffCancelBtn').addEventListener('click', () => { wrap.innerHTML = ''; });
+    document.getElementById('staffSaveBtn').addEventListener('click', saveStaff);
+  }
+
+  async function saveStaff() {
+    const username = document.getElementById('staffUsername').value.trim();
+    const password = document.getElementById('staffPassword').value;
+    const departmentId = document.getElementById('staffDepartment').value;
+    const errorEl = document.getElementById('staffFormError');
+    const btn = document.getElementById('staffSaveBtn');
+    if (!username || !password || !departmentId) {
+      errorEl.textContent = 'Username, password, and department are required.';
+      return;
+    }
+    btn.disabled = true;
+    errorEl.textContent = '';
+    try {
+      await api('POST', '/admin/staff', { username, password, departmentId });
+      document.getElementById('staffFormWrap').innerHTML = '';
+      showToast('Staff account created. Share the password securely with the staff member.');
+      loadStaff();
+    } catch (err) {
+      errorEl.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function loadStaff() {
+    const wrap = document.getElementById('staffListWrap');
+    wrap.innerHTML = '<div class="empty-state">Loading staff accounts…</div>';
+    try {
+      const { staff } = await api('GET', '/admin/staff');
+      if (!staff.length) {
+        wrap.innerHTML = '<div class="empty-state">No staff accounts yet.</div>';
+        return;
+      }
+      wrap.innerHTML = staff.map((member) => '<div class="list-item"><div class="list-item-top"><div>' +
+        '<p class="list-item-title">' + escapeHtml(member.username) + '</p>' +
+        '<p class="list-item-body">' + escapeHtml(member.departmentName || (member.isAdmin ? 'Administrator' : 'No department')) + '</p>' +
+        '</div><span class="cell-muted">' + (member.isAdmin ? 'Administrator' : 'Department staff') + '</span></div></div>').join('');
     } catch (err) {
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message) + '</div>';
     }

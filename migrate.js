@@ -23,6 +23,10 @@ async function main() {
   if (!adminColumns.length) {
     await pool.query('ALTER TABLE staff_users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT TRUE');
   }
+  const [routingKeywordColumns] = await pool.query("SHOW COLUMNS FROM departments LIKE 'routing_keywords'");
+  if (!routingKeywordColumns.length) {
+    await pool.query('ALTER TABLE departments ADD COLUMN routing_keywords JSON NULL');
+  }
   console.log('Schema applied successfully.');
   await pool.end();
 }

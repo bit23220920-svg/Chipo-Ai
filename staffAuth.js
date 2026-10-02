@@ -91,6 +91,23 @@ async function getStaffProfile(id) {
   } : null;
 }
 
+async function listStaffUsers() {
+  const { rows } = await query(
+    `SELECT staff_users.id, staff_users.username, staff_users.department_id, staff_users.is_admin,
+            staff_users.created_at, departments.name AS department_name
+     FROM staff_users LEFT JOIN departments ON departments.id = staff_users.department_id
+     ORDER BY staff_users.username ASC`
+  );
+  return rows.map((staff) => ({
+    id: staff.id,
+    username: staff.username,
+    departmentId: staff.department_id || null,
+    departmentName: staff.department_name || null,
+    isAdmin: !!staff.is_admin,
+    createdAt: staff.created_at,
+  }));
+}
+
 function issueToken(staff) {
   return jwt.sign({ sub: staff.id, username: staff.username, departmentId: staff.departmentId || null, isAdmin: !!staff.isAdmin }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
 }
@@ -100,4 +117,4 @@ function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-module.exports = { createStaffUser, verifyLogin, getStaffProfile, issueToken, verifyToken };
+module.exports = { createStaffUser, verifyLogin, getStaffProfile, listStaffUsers, issueToken, verifyToken };

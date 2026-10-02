@@ -9,11 +9,28 @@ const departments = require('./departments.js');
 const staffAuth = require('./staffAuth.js');
 const chatlog = require('./chatlog.js');
 const systemLog = require('./systemLog.js');
+const { resolveTicketDepartment } = require('./ticketRouting.js');
 const { pool } = require('./db.js');
 const { requireStaffAuth, requireAdminStaff } = require('./middleware.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+async function startServer() {
+  try {
+    await departments.ensureDefaultDepartments();
+  } catch (err) {
+    console.error('Could not start the server because the database is not ready.');
+    console.error('Check that MariaDB/MySQL is running, the database exists, and the app schema has been created.');
+    console.error('Typical fix: start XAMPP MySQL, create the "chipo" database in phpMyAdmin, then run: node migrate.js');
+    console.error(err && (err.message || err));
+    process.exit(1);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+}
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -72,12 +89,7 @@ app.post('/ask', handle(async (req, res) => {
 
   if (needsHuman) {
     const availableDepartments = await departments.listDepartments();
-    const normalizedQuestion = question.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    const matchedDepartment = availableDepartments.find((department) => {
-      const normalizedName = department.name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      return normalizedName && normalizedQuestion.includes(normalizedName);
-    });
-    const routedDepartmentId = faqDepartmentId || (matchedDepartment && matchedDepartment.id) || null;
+    const routedDepartmentId = resolveTicketDepartment(question, availableDepartments, faqDepartmentId);
     ticket = await tickets.createTicket({
       name: req.body.name,
       email: req.body.email,
@@ -120,6 +132,31 @@ app.post('/admin/login', handle(async (req, res) => {
   res.json({ token, staff });
 }));
 
+app.post('/admin/signup', handle(async (req, res) => {
+  const { username, password, departmentId } = req.body;
+  if (!username || !username.trim()) {
+    return res.status(400).json({ error: 'Username is required.' });
+  }
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  }
+  if (!departmentId) {
+    return res.status(400).json({ error: 'Choose a department for this staff account.' });
+  }
+
+  const staff = await staffAuth.createStaffUser(username, password, departmentId);
+  res.status(201).json({ staff });
+}));
+
+app.get('/admin/departments/public', async (req, res) => {
+  try {
+    res.json({ departments: await departments.listDepartments() });
+  } catch (err) {
+    console.warn('Could not load public departments list for signup:', err.message);
+    res.json({ departments: [] });
+  }
+});
+
 app.get('/admin/me', requireStaffAuth, handle(async (req, res) => {
   const staff = await staffAuth.getStaffProfile(req.staff.sub);
   if (!staff) return res.status(401).json({ error: 'Staff account no longer exists.' });
@@ -144,6 +181,24 @@ app.patch('/admin/tickets/:id/status', requireStaffAuth, handle(async (req, res)
     .logEvent({ actor: req.staff.username, action: 'ticket.status_change', detail: `${ticket.id} -> ${status}` })
     .catch((err) => console.error('Could not log system event:', err.message));
   res.json({ ticket });
+}));
+
+// ==================== Admin: staff accounts ====================
+
+app.get('/admin/staff', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  res.json({ staff: await staffAuth.listStaffUsers() });
+}));
+
+app.post('/admin/staff', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const { username, password, departmentId } = req.body;
+  if (!departmentId) {
+    return res.status(400).json({ error: 'Choose a department for this staff account.' });
+  }
+  const staff = await staffAuth.createStaffUser(username, password, departmentId);
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'staff.create', detail: `${staff.username} -> ${staff.departmentName}` })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.status(201).json({ staff });
 }));
 
 // ==================== Admin: FAQs ====================
@@ -187,8 +242,8 @@ app.get('/admin/departments', requireStaffAuth, requireAdminStaff, handle(async 
 }));
 
 app.post('/admin/departments', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
-  const { name, contactEmail } = req.body;
-  const dept = await departments.createDepartment({ name, contactEmail });
+  const { name, contactEmail, routingKeywords } = req.body;
+  const dept = await departments.createDepartment({ name, contactEmail, routingKeywords });
   systemLog
     .logEvent({ actor: req.staff.username, action: 'department.create', detail: dept.name })
     .catch((err) => console.error('Could not log system event:', err.message));
@@ -196,8 +251,8 @@ app.post('/admin/departments', requireStaffAuth, requireAdminStaff, handle(async
 }));
 
 app.put('/admin/departments/:id', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
-  const { name, contactEmail } = req.body;
-  const dept = await departments.updateDepartment(req.params.id, { name, contactEmail });
+  const { name, contactEmail, routingKeywords } = req.body;
+  const dept = await departments.updateDepartment(req.params.id, { name, contactEmail, routingKeywords });
   if (!dept) return res.status(404).json({ error: 'No department found with that id.' });
   systemLog
     .logEvent({ actor: req.staff.username, action: 'department.update', detail: dept.name })
@@ -227,6 +282,8 @@ app.get('/admin/logs/chat', requireStaffAuth, requireAdminStaff, handle(async (r
   res.json({ messages: await chatlog.listRecentMessages({ limit: req.query.limit }) });
 }));
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app };
