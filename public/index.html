@@ -763,6 +763,38 @@
     max-width: 340px;
   }
 
+  .ticket-contact-form {
+    display: grid;
+    gap: 7px;
+    margin-top: 7px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: #fff;
+    font-size: .76rem;
+  }
+  .ticket-contact-form p { margin: 0; color: var(--text-muted); }
+  .ticket-contact-form label { display: grid; gap: 4px; color: #35453b; font-weight: 600; }
+  .ticket-contact-form input {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font: inherit;
+  }
+  .ticket-contact-form button {
+    justify-self: start;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--green-deep);
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+  }
+  .ticket-contact-form button:disabled { opacity: .65; cursor: wait; }
+  .ticket-contact-error { min-height: 14px; color: var(--red); }
+
   /* ---------- Input area ---------- */
   .input-bar {
     padding: 16px 24px 20px;
@@ -1323,6 +1355,15 @@
     chatScroll.scrollTop = chatScroll.scrollHeight;
   }
 
+  async function readJsonResponse(response) {
+    const body = await response.text();
+    try {
+      return JSON.parse(body);
+    } catch {
+      throw new Error(`The server returned an unexpected response (HTTP ${response.status}). Restart the app server and try again.`);
+    }
+  }
+
   function addMessage(role, text, meta = {}) {
     if (welcome.parentNode) welcome.remove();
 
@@ -1351,11 +1392,57 @@
       if (meta.needsHuman) {
         const banner = document.createElement('div');
         banner.className = 'escalate-confirm';
-        const ticket = meta.ticket;
-        banner.textContent = ticket
-          ? `I couldn't answer confidently, so ticket ${ticket.id} was created${ticket.departmentName ? ` for ${ticket.departmentName}` : ' for staff review'}.`
-          : "I couldn't answer confidently, but a staff ticket could not be created. Please try again later.";
+        banner.textContent = "I couldn't answer confidently. Share your contact details below and I'll send your question to the right staff team.";
         col.appendChild(banner);
+        if (meta.escalation) {
+          const contactForm = document.createElement('form');
+          contactForm.className = 'ticket-contact-form';
+          contactForm.innerHTML =
+            '<p>Your ticket is created only after you submit this form. Provide a name and at least one way for staff to contact you.</p>' +
+            '<label>Your name<input name="name" autocomplete="name" maxlength="255" required></label>' +
+            '<label>Email address<input name="email" type="email" autocomplete="email" maxlength="255"></label>' +
+            '<label>Phone number<input name="phone" type="tel" autocomplete="tel" maxlength="40"></label>' +
+            '<button type="submit">Send to staff</button>' +
+            '<span class="ticket-contact-error" role="status" aria-live="polite"></span>';
+          contactForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData(contactForm);
+            const contact = {
+              name: String(formData.get('name') || '').trim(),
+              email: String(formData.get('email') || '').trim(),
+              phone: String(formData.get('phone') || '').trim(),
+            };
+            const error = contactForm.querySelector('.ticket-contact-error');
+            const button = contactForm.querySelector('button');
+            if (!contact.name) {
+              error.textContent = 'Enter your name.';
+              return;
+            }
+            if (!contact.email && !contact.phone) {
+              error.textContent = 'Enter an email address or phone number.';
+              return;
+            }
+            button.disabled = true;
+            error.textContent = '';
+            try {
+              const response = await fetch('/tickets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...meta.escalation, ...contact }),
+              });
+              const data = await readJsonResponse(response);
+              if (!response.ok) throw new Error(data.error || 'Could not save your contact details.');
+              const confirmation = document.createElement('p');
+              confirmation.textContent = `Ticket ${data.ticket.id} was sent to ${data.ticket.departmentName || 'staff'} for follow-up.`;
+              contactForm.replaceChildren(confirmation);
+            }
+            catch (err) {
+              error.textContent = err.message || 'Could not save your contact details.';
+              button.disabled = false;
+            }
+          });
+          col.appendChild(contactForm);
+        }
       }
     }
 
@@ -1413,7 +1500,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, history: conversationHistory })
       });
-      const data = await res.json();
+      const data = await readJsonResponse(res);
 
       removeThinkingBubble();
 
@@ -1425,7 +1512,7 @@
           needsHuman: data.needsHuman,
           confidence: data.confidence,
           question,
-          ticket: data.ticket,
+          escalation: data.escalation,
         });
         // Track this Q&A in history
         conversationHistory.push({ question, answer: data.answer });

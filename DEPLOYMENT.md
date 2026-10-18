@@ -32,7 +32,9 @@ node create-staff.js admin "choose-a-password-at-least-8-characters"
 
 `JWT_SECRET` must also be configured in `.env` to log in to the admin dashboard.
 
-Use the administrator's **Departments** tab to create departments. Then create one login per department from the project terminal. The department name must match what was created in the dashboard:
+After updating an existing installation, run `node migrate.js` again to add the ticket contact fields before starting the app.
+
+When Chipo cannot answer confidently, it asks the student for a name and an email address and/or phone number before creating and routing the ticket. Default departments are added individually at startup, including when an existing database already has only one department. Manage them in the administrator's **Departments** tab, then create one login per department from the project terminal. The department name must match a department in the dashboard:
 
 ```powershell
 node create-staff.js it.staff "choose-a-password-at-least-8-characters" IT

@@ -27,6 +27,10 @@ async function main() {
   if (!routingKeywordColumns.length) {
     await pool.query('ALTER TABLE departments ADD COLUMN routing_keywords JSON NULL');
   }
+  const [ticketPhoneColumns] = await pool.query("SHOW COLUMNS FROM tickets LIKE 'phone'");
+  if (!ticketPhoneColumns.length) {
+    await pool.query('ALTER TABLE tickets ADD COLUMN phone VARCHAR(40) NULL AFTER email');
+  }
   console.log('Schema applied successfully.');
   await pool.end();
 }

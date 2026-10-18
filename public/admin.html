@@ -340,8 +340,6 @@
   .toast.error { background: var(--red); }
   .toast.visible { display: block; }
 
-  .assistant-frame { position: fixed; right: 14px; bottom: 14px; z-index: 60; width: 200px; height: 60px; border: 0; background: transparent; transition: width .18s ease, height .18s ease, right .18s ease, bottom .18s ease; }
-  .assistant-frame.expanded { right: 0; bottom: 0; width: 100vw; height: 100vh; }
 
   @media (max-width: 720px) {
     .sidebar { width: 72px; padding: 16px 8px; }
@@ -494,33 +492,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <iframe class="assistant-frame" id="assistantFrame" src="/index.html?assistant=embed" title="Ask Chipo, the student assistant"></iframe>
-
 <script>
-  const assistantFrame = document.getElementById('assistantFrame');
-  let pointerForwardScheduled = false;
-  let latestPointer = null;
-  document.addEventListener('pointermove', (event) => {
-    latestPointer = { x: event.clientX, y: event.clientY };
-    if (pointerForwardScheduled) return;
-    pointerForwardScheduled = true;
-    requestAnimationFrame(() => {
-      pointerForwardScheduled = false;
-      if (!assistantFrame.contentWindow || !latestPointer) return;
-      assistantFrame.contentWindow.postMessage({
-        type: 'chipo-pointer',
-        ...latestPointer,
-        width: window.innerWidth,
-        height: window.innerHeight,
-      }, window.location.origin);
-    });
-  }, { passive: true });
-  window.addEventListener('message', (event) => {
-    if (event.origin !== window.location.origin) return;
-    if (event.data?.type === 'chipo-widget-open') assistantFrame.classList.add('expanded');
-    if (event.data?.type === 'chipo-widget-close') assistantFrame.classList.remove('expanded');
-  });
-
   // ---------- State ----------
   let token = localStorage.getItem('chipo_staff_token') || null;
   let currentTab = 'tickets';
@@ -704,10 +676,7 @@
   function logout() {
     token = null;
     localStorage.removeItem('chipo_staff_token');
-    appEl.classList.remove('visible');
-    loginScreen.style.display = 'flex';
-    loginUsername.value = '';
-    loginPassword.value = '';
+    window.location.assign('/');
   }
 
   async function enterApp() {
@@ -801,13 +770,16 @@
       }
 
       let html = '<table><thead><tr>' +
-        '<th>Reference</th><th>Student</th><th>Question</th><th>Department</th><th>Reason</th><th>Confidence</th><th>Status</th><th>Opened</th>' +
+        '<th>Reference</th><th>Student contact</th><th>Question</th><th>Department</th><th>Reason</th><th>Confidence</th><th>Status</th><th>Opened</th>' +
         '</tr></thead><tbody>';
 
       tickets.forEach((t) => {
         html += '<tr>' +
           '<td>' + escapeHtml(t.id) + '</td>' +
-          '<td>' + escapeHtml(t.name || '—') + '<br><span class="cell-muted">' + escapeHtml(t.email || 'No email provided') + '</span></td>' +
+          '<td>' + escapeHtml(t.name || '—') +
+            (t.email ? '<br><a href="mailto:' + encodeURIComponent(t.email) + '">' + escapeHtml(t.email) + '</a>' : '<br><span class="cell-muted">No email provided</span>') +
+            (t.phone ? '<br><a href="tel:' + encodeURIComponent(t.phone) + '">' + escapeHtml(t.phone) + '</a>' : '<br><span class="cell-muted">No phone provided</span>') +
+          '</td>' +
           '<td class="cell-q">' + escapeHtml(t.question) + '</td>' +
           '<td>' + escapeHtml(t.departmentName || 'Unassigned') + '</td>' +
           '<td><span class="badge badge-' + t.reason + '">' + (REASON_LABEL[t.reason] || t.reason) + '</span></td>' +

@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   id VARCHAR(20) PRIMARY KEY,
   name VARCHAR(255),
   email VARCHAR(255),
+  phone VARCHAR(40),
   question TEXT NOT NULL,
   last_answer TEXT,
   confidence FLOAT,

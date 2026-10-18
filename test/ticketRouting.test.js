@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { resolveTicketDepartment } = require('../ticketRouting.js');
+const { isTicketRequest, resolveTicketDepartment } = require('../ticketRouting.js');
 
 const departments = [
   { id: 'accounts-id', name: 'Accounts' },
@@ -40,4 +40,24 @@ test('prefers the department assigned by a matching FAQ', () => {
 
 test('leaves unrelated questions unassigned', () => {
   assert.equal(resolveTicketDepartment('What is the weather today?', departments), null);
+});
+
+test('routes unmatched tickets to Student Affairs when available', () => {
+  const departmentsWithSupport = [
+    ...departments,
+    { id: 'student-affairs-id', name: 'Student Affairs' },
+  ];
+  assert.equal(resolveTicketDepartment('Where can I get help on campus?', departmentsWithSupport), 'student-affairs-id');
+});
+
+test('recognizes direct requests to create a staff ticket', () => {
+  assert.equal(isTicketRequest('I want to create a ticket'), true);
+  assert.equal(isTicketRequest('Can you send me a support ticket?'), true);
+  assert.equal(isTicketRequest('Please open a ticket'), true);
+  assert.equal(isTicketRequest('I need a ticket'), true);
+});
+
+test('does not treat ticket status lookups as ticket creation requests', () => {
+  assert.equal(isTicketRequest('How do I check my ticket status?'), false);
+  assert.equal(isTicketRequest('Can I track my support ticket?'), false);
 });

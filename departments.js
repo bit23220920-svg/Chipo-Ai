@@ -102,14 +102,18 @@ async function deleteDepartment(id) {
 }
 
 async function ensureDefaultDepartments() {
-  const current = await listDepartments();
-  if (current.length) return current;
-
-  const created = [];
+  const existing = await listDepartments();
+  const existingNames = new Set(existing.map((department) => department.name.toLowerCase()));
   for (const department of DEFAULT_DEPARTMENTS) {
-    created.push(await createDepartment(department));
+    if (existingNames.has(department.name.toLowerCase())) continue;
+    try {
+      await createDepartment(department);
+      existingNames.add(department.name.toLowerCase());
+    } catch (err) {
+      if (err.statusCode !== 409) throw err;
+    }
   }
-  return created;
+  return listDepartments();
 }
 
 function badRequest(message) {

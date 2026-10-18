@@ -9,7 +9,7 @@ const departments = require('./departments.js');
 const staffAuth = require('./staffAuth.js');
 const chatlog = require('./chatlog.js');
 const systemLog = require('./systemLog.js');
-const { resolveTicketDepartment } = require('./ticketRouting.js');
+const { isTicketRequest, resolveTicketDepartment } = require('./ticketRouting.js');
 const { pool } = require('./db.js');
 const { requireStaffAuth, requireAdminStaff } = require('./middleware.js');
 
@@ -84,25 +84,35 @@ app.post('/ask', handle(async (req, res) => {
     : [];
 
   console.log(`\nReceived question: "${question}" (with ${safeHistory.length} prior turns)`);
-  const { answer, confidence, needsHuman, source, departmentId: faqDepartmentId } = await askQuestion(question, safeHistory);
-  let ticket = null;
-
-  if (needsHuman) {
-    const availableDepartments = await departments.listDepartments();
-    const routedDepartmentId = resolveTicketDepartment(question, availableDepartments, faqDepartmentId);
-    ticket = await tickets.createTicket({
-      name: req.body.name,
-      email: req.body.email,
-      question,
-      answer,
-      confidence,
-      reason: 'low_confidence',
-      departmentId: routedDepartmentId,
-    });
-    ticket.departmentName = availableDepartments.find((department) => department.id === routedDepartmentId)?.name || null;
-  }
-
-  res.json({ answer, confidence, needsHuman, ticket });
+  const ticketRequest = isTicketRequest(question);
+  const result = ticketRequest
+    ? {
+        answer: '',
+        confidence: null,
+        needsHuman: true,
+        source: 'manual_request',
+        departmentId: null,
+      }
+    : await askQuestion(question, safeHistory);
+  const needsHuman = ticketRequest || result.needsHuman;
+  const answer = needsHuman
+    ? 'I can send your question to the right university team. First, please share your name and either your email address or phone number using the form below.'
+    : result.answer;
+  const { confidence, source } = result;
+  res.json({
+    answer,
+    confidence,
+    needsHuman,
+    escalation: needsHuman
+      ? {
+          question,
+          answer,
+          confidence,
+          departmentId: result.departmentId,
+          reason: ticketRequest ? 'manual_request' : 'low_confidence',
+        }
+      : null,
+  });
 
   // Log after responding — a logging hiccup shouldn't delay or break the
   // student's answer. Best-effort; failures are just logged server-side.
@@ -113,13 +123,39 @@ app.post('/ask', handle(async (req, res) => {
 
 // ==================== Student-facing: ticket lookup ====================
 
+app.post('/tickets', handle(async (req, res) => {
+  const body = req.body || {};
+  const { question, answer, confidence, name, email, phone, reason } = body;
+  if (typeof question !== 'string' || !question.trim()) {
+    return res.status(400).json({ error: 'A question is required to open a ticket.' });
+  }
+
+  const availableDepartments = await departments.listDepartments();
+  const preferredDepartmentId = availableDepartments.some((department) => department.id === body.departmentId)
+    ? body.departmentId
+    : null;
+  const routedDepartmentId = resolveTicketDepartment(question, availableDepartments, preferredDepartmentId);
+  const ticket = await tickets.createTicket({
+    name,
+    email,
+    phone,
+    question,
+    answer,
+    confidence,
+    reason,
+    departmentId: routedDepartmentId,
+  });
+  ticket.departmentName = availableDepartments.find((department) => department.id === routedDepartmentId)?.name || null;
+  res.status(201).json({ ticket: { id: ticket.id, departmentName: ticket.departmentName, status: ticket.status } });
+}));
+
 // Check a single ticket by its reference number. No login required — the
 // reference itself (random, unguessable) is the credential, the same way a
 // parcel tracking number works.
 app.get('/tickets/:id', handle(async (req, res) => {
   const ticket = await tickets.getTicket(req.params.id);
   if (!ticket) return res.status(404).json({ error: 'No ticket found with that reference.' });
-  res.json({ ticket });
+  res.json({ ticket: { id: ticket.id, status: ticket.status, createdAt: ticket.createdAt, updatedAt: ticket.updatedAt } });
 }));
 
 // ==================== Staff login ====================
@@ -286,4 +322,4 @@ if (require.main === module) {
   startServer();
 }
 
-module.exports = { app };
+module.exports = { app, startServer };

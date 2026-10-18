@@ -11,10 +11,10 @@ const VALID_STATUSES = ['open', 'in_progress', 'resolved'];
 const VALID_REASONS = ['low_confidence', 'manual_request'];
 
 // Short, human-readable reference the student can quote later,
-// e.g. "TCK-8F3K2A". Not sequential on purpose, so one student can't
+// e.g. "TCK-0123456789ABCDEF". Not sequential on purpose, so one student can't
 // guess another student's ticket number.
 function generateReference() {
-  return 'TCK-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+  return 'TCK-' + crypto.randomBytes(8).toString('hex').toUpperCase();
 }
 
 function rowToTicket(row) {
@@ -22,6 +22,7 @@ function rowToTicket(row) {
     id: row.id,
     name: row.name,
     email: row.email,
+    phone: row.phone,
     question: row.question,
     lastAnswer: row.last_answer,
     confidence: row.confidence === null ? null : Number(row.confidence),
@@ -40,30 +41,50 @@ function badRequest(message) {
   return err;
 }
 
+function normalizeContact({ name, email, phone } = {}) {
+  const safeName = typeof name === 'string' ? name.trim() : '';
+  const safeEmail = typeof email === 'string' ? email.trim() : '';
+  const safePhone = typeof phone === 'string' ? phone.trim() : '';
+  if (safeName.length > 255) throw badRequest('Name must be 255 characters or fewer.');
+  if (!safeEmail && !safePhone) throw badRequest('Provide an email address or phone number.');
+  if (safeEmail.length > 255) throw badRequest('Email must be 255 characters or fewer.');
+  if (safeEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail)) {
+    throw badRequest('Enter a valid email address.');
+  }
+  if (safePhone && (!/^[+()\d\s.-]{7,40}$/.test(safePhone) || safePhone.replace(/\D/g, '').length < 7)) {
+    throw badRequest('Enter a valid phone number.');
+  }
+  return { name: safeName || null, email: safeEmail || null, phone: safePhone || null };
+}
+
 /**
  * Create a new ticket.
  * @param {object} fields
  * @param {string} [fields.name]
- * @param {string} [fields.email]        - Optional student contact address.
+ * @param {string} [fields.email]        - Student contact address; email or phone is required.
+ * @param {string} [fields.phone]        - Student contact number; email or phone is required.
  * @param {string} fields.question       - The question that triggered escalation.
  * @param {string} [fields.answer]       - Chipo's best-effort answer, if any.
  * @param {number} [fields.confidence]   - Top retrieval similarity score (0-1), if known.
  * @param {'low_confidence'|'manual_request'} [fields.reason]
  * @param {string} [fields.departmentId] - Routed department, if known.
  */
-async function createTicket({ name, email, question, answer, confidence, reason, departmentId } = {}) {
+async function createTicket({ name, email, phone, question, answer, confidence, reason, departmentId } = {}) {
   if (!question || !question.trim()) throw badRequest('A question is required to open a ticket.');
+  if (question.trim().length > 10000) throw badRequest('Question must be 10,000 characters or fewer.');
+  const contact = normalizeContact({ name, email, phone });
 
   const id = generateReference();
   const safeReason = VALID_REASONS.includes(reason) ? reason : 'manual_request';
 
   await query(
-    `INSERT INTO tickets (id, name, email, question, last_answer, confidence, reason, department_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    `INSERT INTO tickets (id, name, email, phone, question, last_answer, confidence, reason, department_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [
       id,
-      (name || '').trim() || null,
-      (email || '').trim() || null,
+      contact.name,
+      contact.email,
+      contact.phone,
       question.trim(),
       answer ? String(answer).trim() : null,
       typeof confidence === 'number' ? confidence : null,

@@ -38,8 +38,10 @@ const UNCERTAINTY_PATTERNS = [
   /i'?m not able to find/i,
   /don'?t have (any )?(specific )?(details|information) (about|on)/i,
   /contact the admissions office/i,
+  /reach out to (?:the )?admissions office/i,
   /i don'?t know/i,
   /i'?m not sure/i,
+  /i'?m not quite sure what you mean/i,
   /can'?t confirm/i,
   /not something i (can|have)/i,
 ];
