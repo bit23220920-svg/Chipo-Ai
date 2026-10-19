@@ -95,12 +95,22 @@ async function createTicket({ name, email, phone, question, answer, confidence, 
   return getTicket(id);
 }
 
+async function assignUnassignedTickets(departmentId) {
+  if (!departmentId) return;
+  await query(
+    `UPDATE tickets SET department_id = $1, updated_at = CURRENT_TIMESTAMP WHERE department_id IS NULL`,
+    [departmentId]
+  );
+}
+
 /** List tickets, optionally filtered by status, newest first. */
 async function listTickets({ status, departmentId, isAdmin = true } = {}) {
   const filters = [];
   const params = [];
   if (status) {
     filters.push(`tickets.status = $${params.push(status)}`);
+  } else {
+    filters.push(`tickets.status <> 'resolved'`);
   }
   if (isAdmin && !departmentId) {
     // Administrators may see every ticket.
@@ -146,4 +156,4 @@ async function updateTicketStatus(id, status, departmentId = null, isAdmin = tru
   return getTicket(id, departmentId);
 }
 
-module.exports = { createTicket, listTickets, getTicket, updateTicketStatus, VALID_STATUSES };
+module.exports = { createTicket, assignUnassignedTickets, listTickets, getTicket, updateTicketStatus, VALID_STATUSES };

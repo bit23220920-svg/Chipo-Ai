@@ -431,7 +431,7 @@
         <div class="tab-panel" id="tab-tickets">
           <div class="panel">
             <div class="filter-row" id="ticketFilters">
-              <button class="filter-chip active" data-status="">All</button>
+              <button class="filter-chip active" data-status="">Active</button>
               <button class="filter-chip" data-status="open">Open</button>
               <button class="filter-chip" data-status="in_progress">In progress</button>
               <button class="filter-chip" data-status="resolved">Resolved</button>
@@ -499,6 +499,8 @@
   let currentTab = 'tickets';
   let currentTicketFilter = '';
   let ticketsLoading = false;
+  let ticketRefreshQueued = false;
+  let ticketStreamController = null;
   let currentLogTab = 'system';
   let departmentsCache = [];
   let editingFaqId = null;   // null = create mode
@@ -677,6 +679,10 @@
   }
 
   function logout() {
+    if (ticketStreamController) {
+      ticketStreamController.abort();
+      ticketStreamController = null;
+    }
     token = null;
     localStorage.removeItem('chipo_staff_token');
     window.location.assign('/');
@@ -686,6 +692,7 @@
     loginScreen.style.display = 'none';
     appEl.classList.add('visible');
     switchTab('tickets');
+    connectTicketStream();
   }
 
   function applyStaffProfile(profile) {
@@ -754,11 +761,60 @@
 
   document.getElementById('refreshTicketsBtn').addEventListener('click', () => loadTickets());
 
+  async function connectTicketStream() {
+    if (!token || ticketStreamController) return;
+    const controller = new AbortController();
+    ticketStreamController = controller;
+    try {
+      const response = await fetch('/admin/tickets/stream', {
+        headers: { Authorization: 'Bearer ' + token },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      if (response.status === 401) {
+        logout();
+        return;
+      }
+      if (!response.ok || !response.body) {
+        throw new Error('Live ticket updates are unavailable.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let pending = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        pending += decoder.decode(value, { stream: true });
+        const events = pending.split(/\r?\n\r?\n/);
+        pending = events.pop() || '';
+        for (const event of events) {
+          if (event.split(/\r?\n/).some((line) => line === 'data: tickets_changed') &&
+              currentTab === 'tickets' && !document.hidden) {
+            loadTickets({ silent: true });
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') console.warn('Live ticket updates disconnected:', err.message);
+    } finally {
+      if (ticketStreamController === controller) {
+        ticketStreamController = null;
+        if (token && appEl.classList.contains('visible')) {
+          window.setTimeout(connectTicketStream, 3000);
+        }
+      }
+    }
+  }
+
   const STATUS_LABEL = { open: 'Open', in_progress: 'In progress', resolved: 'Resolved' };
   const REASON_LABEL = { low_confidence: 'Low confidence', manual_request: 'Asked for staff' };
 
   async function loadTickets({ silent = false } = {}) {
-    if (ticketsLoading) return;
+    if (ticketsLoading) {
+      ticketRefreshQueued = true;
+      return;
+    }
     ticketsLoading = true;
     const wrap = document.getElementById('ticketsTableWrap');
     if (!silent) wrap.innerHTML = '<div class="empty-state">Loading tickets…</div>';
@@ -772,7 +828,10 @@
       else { badge.style.display = 'none'; }
 
       if (!tickets.length) {
-        wrap.innerHTML = '<div class="empty-state">No tickets' + (currentTicketFilter ? ' with this status' : '') + ' yet.</div>';
+        const emptyMessage = currentTicketFilter
+          ? `No ${STATUS_LABEL[currentTicketFilter].toLowerCase()} tickets yet.`
+          : 'No active tickets yet.';
+        wrap.innerHTML = '<div class="empty-state">' + escapeHtml(emptyMessage) + '</div>';
         return;
       }
 
@@ -821,6 +880,10 @@
       wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message) + '</div>';
     } finally {
       ticketsLoading = false;
+      if (ticketRefreshQueued) {
+        ticketRefreshQueued = false;
+        loadTickets({ silent: true });
+      }
     }
   }
 
@@ -828,7 +891,7 @@
     if (token && appEl.classList.contains('visible') && currentTab === 'tickets' && !document.hidden) {
       loadTickets({ silent: true });
     }
-  }, 15000);
+  }, 5000);
 
   // ================= FAQs =================
 

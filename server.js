@@ -15,10 +15,22 @@ const { requireStaffAuth, requireAdminStaff } = require('./middleware.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ticketEventClients = new Set();
+
+function notifyTicketChange() {
+  for (const response of ticketEventClients) {
+    response.write('data: tickets_changed\n\n');
+  }
+}
 
 async function startServer() {
   try {
-    await departments.ensureDefaultDepartments();
+    const availableDepartments = await departments.ensureDefaultDepartments();
+    const defaultDepartment = availableDepartments.find((department) => department.name.toLowerCase() === 'student affairs')
+      || availableDepartments[0];
+    if (defaultDepartment) {
+      await tickets.assignUnassignedTickets(defaultDepartment.id);
+    }
   } catch (err) {
     console.error('Could not start the server because the database is not ready.');
     console.error('Check that MariaDB/MySQL is running, the database exists, and the app schema has been created.');
@@ -45,6 +57,24 @@ app.get('/health', async (req, res) => {
   } catch (err) {
     res.status(503).json({ status: 'error', error: 'Database unreachable.' });
   }
+});
+
+app.get('/admin/tickets/stream', requireStaffAuth, (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+  res.write('retry: 3000\n\n');
+  ticketEventClients.add(res);
+
+  const heartbeat = setInterval(() => res.write(': keep-alive\n\n'), 20000);
+  res.on('close', () => {
+    clearInterval(heartbeat);
+    ticketEventClients.delete(res);
+  });
 });
 
 // Small helper so every admin route doesn't repeat its own try/catch —
@@ -145,6 +175,7 @@ app.post('/tickets', handle(async (req, res) => {
     reason,
     departmentId: routedDepartmentId,
   });
+  notifyTicketChange();
   ticket.departmentName = availableDepartments.find((department) => department.id === routedDepartmentId)?.name || null;
   res.status(201).json({ ticket: { id: ticket.id, departmentName: ticket.departmentName, status: ticket.status } });
 }));
@@ -213,6 +244,7 @@ app.patch('/admin/tickets/:id/status', requireStaffAuth, handle(async (req, res)
   const { status } = req.body;
   const ticket = await tickets.updateTicketStatus(req.params.id, status, req.staff.departmentId, req.staff.isAdmin);
   if (!ticket) return res.status(404).json({ error: 'No ticket found with that reference.' });
+  notifyTicketChange();
   systemLog
     .logEvent({ actor: req.staff.username, action: 'ticket.status_change', detail: `${ticket.id} -> ${status}` })
     .catch((err) => console.error('Could not log system event:', err.message));
