@@ -71,7 +71,7 @@ node create-staff.js admin "choose-a-password-at-least-8-characters"
 
 After updating an existing installation, run `node migrate.js` again to add the ticket contact fields before starting the app.
 
-When Chipo cannot answer confidently, it asks the student for a name and an email address and/or phone number before creating and routing the ticket. Default departments are added individually at startup, including when an existing database already has only one department. On startup, previously unassigned tickets are assigned to Student Affairs, or the first available department if Student Affairs is unavailable, so they appear in a department queue. Manage departments in the administrator's **Departments** tab, then create one login per department from the project terminal. The department name must match a department in the dashboard:
+When Chipo cannot answer confidently, it asks the student for a name and an email address and/or phone number before creating and routing the ticket. Ticket routing uses the current question first, then recent student questions in the same conversation, configured department routing keywords, and the FAQ department when the query itself does not identify a team. Unmatched tickets go to Student Affairs when that department is available; they are not arbitrarily assigned to the first department. Tickets remain stored with their department assignment and are visible to its staff account; creating a staff login does not create or move tickets. Create department logins from the administrator's **Staff accounts** tab or the project terminal. The department name must match a department in the dashboard:
 
 ```powershell
 node create-staff.js it.staff "choose-a-password-at-least-8-characters" IT

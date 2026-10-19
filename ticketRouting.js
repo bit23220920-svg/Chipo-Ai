@@ -48,22 +48,32 @@ function isTicketRequest(question) {
     || /\b(?:can|could|would)\s+you\s+(?:please\s+)?(?:create|open|raise|submit|send|make)\s+(?:me\s+)?(?:a\s+)?(?:support\s+)?ticket\b/.test(text);
 }
 
-function resolveTicketDepartment(question, departments, preferredDepartmentId = null) {
-  if (preferredDepartmentId) return preferredDepartmentId;
-  const normalizedQuestion = normalizeText(question);
-
-  const matchingDepartment = departments.find((department) => {
+function matchingDepartmentForText(text, departments) {
+  const normalizedText = normalizeText(text);
+  return departments.find((department) => {
     const category = categoryForDepartment(department.name);
     const terms = [
       department.name,
       ...(department.routingKeywords || []),
       ...(category ? DEFAULT_ROUTING_TERMS[category] : []),
     ];
-    return terms.some((term) => includesTerm(normalizedQuestion, term));
-  });
-  if (matchingDepartment) return matchingDepartment.id;
+    return terms.some((term) => includesTerm(normalizedText, term));
+  }) || null;
+}
 
-  return departments.find((department) => categoryForDepartment(department.name) === 'studentAffairs')?.id || null;
+function resolveTicketDepartment(question, departments, preferredDepartmentId = null, routingContext = []) {
+  const currentQuestionMatch = matchingDepartmentForText(question, departments);
+  if (currentQuestionMatch) return currentQuestionMatch.id;
+
+  for (const previousQuestion of [...routingContext].reverse()) {
+    const contextMatch = matchingDepartmentForText(previousQuestion, departments);
+    if (contextMatch) return contextMatch.id;
+  }
+
+  if (preferredDepartmentId) return preferredDepartmentId;
+
+  return departments.find((department) => categoryForDepartment(department.name) === 'studentAffairs')?.id
+    || null;
 }
 
 module.exports = { isTicketRequest, resolveTicketDepartment };

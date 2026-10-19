@@ -139,6 +139,7 @@ app.post('/ask', handle(async (req, res) => {
           answer,
           confidence,
           departmentId: result.departmentId,
+          routingContext: safeHistory.map((turn) => turn.question.slice(0, 1000)),
           reason: ticketRequest ? 'manual_request' : 'low_confidence',
         }
       : null,
@@ -161,10 +162,13 @@ app.post('/tickets', handle(async (req, res) => {
   }
 
   const availableDepartments = await departments.listDepartments();
+  const routingContext = Array.isArray(body.routingContext)
+    ? body.routingContext.filter((entry) => typeof entry === 'string').slice(-3)
+    : [];
   const preferredDepartmentId = availableDepartments.some((department) => department.id === body.departmentId)
     ? body.departmentId
     : null;
-  const routedDepartmentId = resolveTicketDepartment(question, availableDepartments, preferredDepartmentId);
+  const routedDepartmentId = resolveTicketDepartment(question, availableDepartments, preferredDepartmentId, routingContext);
   const ticket = await tickets.createTicket({
     name,
     email,
