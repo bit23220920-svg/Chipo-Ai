@@ -1,6 +1,43 @@
-# Running Chipo with XAMPP
+# Running Chipo
 
-This project uses XAMPP's MariaDB database. Start MariaDB from the XAMPP Control Panel, then create the app database and let the app create its tables.
+## Turso
+
+When `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` are set in `.env`, the app uses Turso/libSQL. Keep the token private and do not commit `.env`.
+
+1. Create a database in Turso and copy its database URL and auth token into `.env`:
+
+   ```dotenv
+   TURSO_DATABASE_URL=libsql://your-database-name-your-org.turso.io
+   TURSO_AUTH_TOKEN=your-database-auth-token
+   JWT_SECRET=your-long-random-secret
+   GEMINI_API_KEY=your-gemini-api-key
+   ```
+
+2. Install dependencies and apply the schema:
+
+   ```powershell
+   npm install
+   node migrate.js
+   ```
+
+   This applies `schema.turso.sql` to the configured Turso database. It creates/updates the schema only; it does not copy existing FAQs, staff, or tickets from XAMPP.
+3. Start the app and open `http://localhost:3000`:
+
+   ```powershell
+   npm start
+   ```
+
+4. Create the first administrator account:
+
+   ```powershell
+   node create-staff.js admin "choose-a-password-at-least-8-characters"
+   ```
+
+For a Turso deployment, set the same Turso variables, `JWT_SECRET`, and `GEMINI_API_KEY` in the hosting service's environment settings. Run `node migrate.js` once against that database before starting the app.
+
+## Local MySQL with XAMPP
+
+If Turso variables are not set, the app continues to use XAMPP's MariaDB configuration. Start MariaDB from the XAMPP Control Panel, then create the app database and let the app create its tables.
 
 ## First-time setup
 
@@ -22,7 +59,7 @@ This project uses XAMPP's MariaDB database. Start MariaDB from the XAMPP Control
 
 5. Open `http://localhost:3000` for chat or `http://localhost:3000/admin.html` for the staff dashboard.
 
-To use a MariaDB password or a non-default connection, set these in `.env`: `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE`. Do not share or commit `.env`.
+To use a MariaDB password or a non-default connection, set these in `.env`: `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE`.
 
 Create the first administrator account from another terminal in the same folder:
 
@@ -34,7 +71,7 @@ node create-staff.js admin "choose-a-password-at-least-8-characters"
 
 After updating an existing installation, run `node migrate.js` again to add the ticket contact fields before starting the app.
 
-When Chipo cannot answer confidently, it asks the student for a name and an email address and/or phone number before creating and routing the ticket. Default departments are added individually at startup, including when an existing database already has only one department. Manage them in the administrator's **Departments** tab, then create one login per department from the project terminal. The department name must match a department in the dashboard:
+When Chipo cannot answer confidently, it asks the student for a name and an email address and/or phone number before creating and routing the ticket. Default departments are added individually at startup, including when an existing database already has only one department. On startup, previously unassigned tickets are assigned to Student Affairs, or the first available department if Student Affairs is unavailable, so they appear in a department queue. Manage departments in the administrator's **Departments** tab, then create one login per department from the project terminal. The department name must match a department in the dashboard:
 
 ```powershell
 node create-staff.js it.staff "choose-a-password-at-least-8-characters" IT

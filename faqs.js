@@ -27,7 +27,7 @@ function rowToFaq(row) {
     question: row.question,
     answer: row.answer,
     departmentId: row.department_id,
-    isActive: row.is_active,
+    isActive: !!row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

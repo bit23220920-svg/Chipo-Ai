@@ -30,7 +30,7 @@ function rowToMessage(row) {
     question: row.question,
     answer: row.answer,
     confidence: row.confidence === null ? null : Number(row.confidence),
-    needsHuman: row.needs_human,
+    needsHuman: !!row.needs_human,
     source: row.source,
     createdAt: row.created_at,
   };
