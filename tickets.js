@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const { query } = require('./db.js');
 
 const VALID_STATUSES = ['open', 'in_progress', 'resolved'];
-const VALID_REASONS = ['low_confidence', 'manual_request'];
+const VALID_REASONS = ['low_confidence', 'manual_request', 'wellbeing'];
 
 // Short, human-readable reference the student can quote later,
 // e.g. "TCK-0123456789ABCDEF". Not sequential on purpose, so one student can't
@@ -66,7 +66,7 @@ function normalizeContact({ name, email, phone } = {}) {
  * @param {string} fields.question       - The question that triggered escalation.
  * @param {string} [fields.answer]       - Chipo's best-effort answer, if any.
  * @param {number} [fields.confidence]   - Top retrieval similarity score (0-1), if known.
- * @param {'low_confidence'|'manual_request'} [fields.reason]
+ * @param {'low_confidence'|'manual_request'|'wellbeing'} [fields.reason]
  * @param {string} [fields.departmentId] - Routed department, if known.
  */
 async function createTicket({ name, email, phone, question, answer, confidence, reason, departmentId } = {}) {

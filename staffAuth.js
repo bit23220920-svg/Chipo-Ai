@@ -109,12 +109,18 @@ async function listStaffUsers() {
 }
 
 function issueToken(staff) {
-  return jwt.sign({ sub: staff.id, username: staff.username, departmentId: staff.departmentId || null, isAdmin: !!staff.isAdmin }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+  return jwt.sign({ sub: staff.id, type: 'staff', username: staff.username, departmentId: staff.departmentId || null, isAdmin: !!staff.isAdmin }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
 }
 
-/** Throws if the token is missing/invalid/expired. */
+/** Throws if the token is missing/invalid/expired or is not a staff token. */
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  const payload = jwt.verify(token, JWT_SECRET);
+  if (payload.type !== 'staff') {
+    const err = new Error('Not a staff session.');
+    err.statusCode = 401;
+    throw err;
+  }
+  return payload;
 }
 
 module.exports = { createStaffUser, verifyLogin, getStaffProfile, listStaffUsers, issueToken, verifyToken };

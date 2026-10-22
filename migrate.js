@@ -23,6 +23,8 @@ async function main() {
       ['staff_users', 'is_admin', 'INTEGER NOT NULL DEFAULT 1'],
       ['departments', 'routing_keywords', 'TEXT NULL'],
       ['tickets', 'phone', 'TEXT NULL'],
+      ['chat_messages', 'student_id', 'TEXT NULL'],
+      ['chat_messages', 'student_number', 'TEXT NULL'],
     ];
 
     for (const [table, column, definition] of compatibilityColumns) {
@@ -38,7 +40,9 @@ async function main() {
       'CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)',
       'CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id)',
       'CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_chat_messages_student ON chat_messages(student_id)',
       'CREATE INDEX IF NOT EXISTS idx_system_logs_created ON system_logs(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_announcements_published ON announcements(published_at)',
     ];
     for (const indexSql of indexes) await query(indexSql);
   } else {
@@ -59,6 +63,10 @@ async function main() {
     const [ticketPhoneColumns] = await pool.query("SHOW COLUMNS FROM tickets LIKE 'phone'");
     if (!ticketPhoneColumns.length) {
       await pool.query('ALTER TABLE tickets ADD COLUMN phone VARCHAR(40) NULL AFTER email');
+    }
+    const [chatStudentColumns] = await pool.query("SHOW COLUMNS FROM chat_messages LIKE 'student_id'");
+    if (!chatStudentColumns.length) {
+      await pool.query('ALTER TABLE chat_messages ADD COLUMN student_id CHAR(36) NULL AFTER source, ADD COLUMN student_number VARCHAR(50) NULL AFTER student_id, ADD INDEX idx_chat_messages_student (student_id)');
     }
   }
   console.log('Schema applied successfully.');

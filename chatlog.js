@@ -8,10 +8,10 @@
 
 const { query } = require('./db.js');
 
-async function logMessage({ sessionId, question, answer, confidence, needsHuman, source }) {
+async function logMessage({ sessionId, question, answer, confidence, needsHuman, source, studentId = null, studentNumber = null }) {
   await query(
-    `INSERT INTO chat_messages (session_id, question, answer, confidence, needs_human, source)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+    `INSERT INTO chat_messages (session_id, question, answer, confidence, needs_human, source, student_id, student_number)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       sessionId || 'unknown',
       question,
@@ -19,6 +19,8 @@ async function logMessage({ sessionId, question, answer, confidence, needsHuman,
       typeof confidence === 'number' ? confidence : null,
       !!needsHuman,
       source || 'rag',
+      studentId,
+      studentNumber,
     ]
   );
 }

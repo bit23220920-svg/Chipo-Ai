@@ -56,6 +56,44 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   confidence REAL,
   needs_human INTEGER NOT NULL DEFAULT 0,
   source TEXT NOT NULL DEFAULT 'rag',
+  student_id TEXT NULL,
+  student_number TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS students (
+  id TEXT PRIMARY KEY,
+  student_number TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'Basic student',
+  programme TEXT,
+  faculty TEXT,
+  year_of_study TEXT,
+  email TEXT,
+  phone TEXT,
+  status TEXT NOT NULL DEFAULT 'Active',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  category TEXT,
+  is_important INTEGER NOT NULL DEFAULT 0,
+  published_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS portal_timetables (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  academic_year TEXT NOT NULL,
+  semester TEXT NOT NULL,
+  url TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

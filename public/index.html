@@ -1,935 +1,32 @@
-<!DOCTYPE html>
-<html lang="en">
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UNILUS Student Assistant</title>
-<style>
-  :root {
-    --green-deep: #0a4429;
-    --green-mid: #0f5c37;
-    --green-bright: #157a46;
-    --gold: #c9a227;
-    --gold-light: #e6c85c;
-    --bg: #f6f5f1;
-    --panel: #ffffff;
-    --text-dark: #1c231f;
-    --text-muted: #6b7570;
-    --border: #e4e2da;
-    --red: #d64545;
-  }
-
-  * { box-sizing: border-box; }
-
-  body {
-    margin: 0;
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--bg);
-    color: var(--text-dark);
-    min-height: 100vh;
-  }
-
-  .portal {
-    min-height: 100vh;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
-    align-items: center;
-    gap: 8vw;
-    padding: 8vh 10vw;
-    background: radial-gradient(ellipse at 18% 85%, rgba(201,162,39,.13), transparent 36%), linear-gradient(135deg, #f6f5f1 0%, #eef2eb 55%, #f8f7f2 100%);
-  }
-  .portal-copy { max-width: 700px; }
-  .portal-brand { display: flex; align-items: center; gap: 12px; color: var(--green-deep); font-weight: 700; }
-  .portal-mark { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; background: var(--gold); }
-  .portal-copy h1 { max-width: 640px; margin: 40px 0 18px; color: var(--green-deep); font-size: clamp(2.4rem, 4vw, 4.5rem); line-height: 1.04; font-weight: 650; }
-  .portal-copy p { max-width: 540px; color: #5c6961; font-size: 1.05rem; line-height: 1.65; }
-  .staff-login { padding: 30px; background: rgba(255,255,255,.88); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 20px 60px rgba(26,47,34,.09); }
-  .staff-login h2 { margin: 0 0 6px; color: var(--green-deep); font-size: 1.35rem; }
-  .staff-login p { margin: 0 0 24px; color: var(--text-muted); font-size: .9rem; }
-  .staff-login label { display: block; margin: 14px 0 6px; color: #35453b; font-size: .82rem; font-weight: 650; }
-  .staff-login input { width: 100%; height: 44px; padding: 0 12px; border: 1px solid #d6ddd7; border-radius: 6px; font: inherit; }
-  .staff-login button { width: 100%; height: 44px; margin-top: 20px; border: 0; border-radius: 6px; background: var(--green-deep); color: white; font: inherit; font-weight: 650; cursor: pointer; }
-  .staff-login button:disabled { opacity: .65; cursor: wait; }
-  .portal-error { min-height: 18px; margin-top: 10px; color: var(--red); font-size: .82rem; }
-
-  .chat-launcher { position: fixed; right: 28px; bottom: 22px; z-index: 50; display: grid; place-items: center; width: 92px; height: 112px; padding: 0; border: 0; background: transparent; color: #fff; cursor: pointer; font: inherit; }
-  .chipo-mascot { width: 82px; height: 88px; overflow: visible; transform-origin: 50% 90%; animation: chipoFloat 3s ease-in-out infinite; filter: drop-shadow(0 8px 10px rgba(6,49,28,.22)); transition: transform .18s ease; }
-  .chat-launcher:hover .chipo-mascot { transform: scale(1.07) rotate(-3deg); }
-  .chat-launcher:active .chipo-mascot { transform: scale(.96); }
-  .chipo-pupil { transform: translate(var(--look-x, 0px), var(--look-y, 0px)); transition: transform .09s ease-out; }
-  .chipo-label { position: absolute; right: 94px; bottom: 18px; padding: 8px 11px; background: #0a4429; color: #fff; font-size: .78rem; font-weight: 650; white-space: nowrap; opacity: 0; transform: translateX(5px); transition: opacity .16s ease, transform .16s ease; pointer-events: none; }
-  .chat-launcher:hover .chipo-label, .chat-launcher:focus-visible .chipo-label { opacity: 1; transform: translateX(0); }
-  .chat-launcher:focus-visible { outline: 2px solid #c9a227; outline-offset: 3px; }
-  @keyframes chipoFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -5px; } }
-  .chat-widget-panel { position: fixed; right: 24px; bottom: 82px; z-index: 49; display: none; width: min(420px, calc(100vw - 24px)); height: min(680px, calc(100vh - 110px)); overflow: hidden; border: 1px solid rgba(10,68,41,.18); border-radius: 12px; background: white; box-shadow: 0 18px 60px rgba(15,35,22,.24); }
-  .chat-widget-panel.open { display: block; animation: widgetIn .18s ease-out; }
-  .chat-widget-panel > .app { width: 100%; height: 100%; min-height: 0; }
-  .chat-widget-panel .sidebar {
-    position: absolute;
-    z-index: 3;
-    inset: 0 auto 0 0;
-    width: 245px;
-    padding: 15px 12px;
-    transform: translateX(-105%);
-    transition: transform .2s ease;
-    box-shadow: 12px 0 28px rgba(0,0,0,.18);
-  }
-  .chat-widget-panel .sidebar.open { transform: translateX(0); }
-  .chat-widget-panel .menu-toggle { display: flex; }
-  .chat-widget-panel .sidebar-scrim { position: absolute; z-index: 2; inset: 0; display: none; border: 0; background: rgba(0,0,0,.2); }
-  .chat-widget-panel .sidebar-scrim.visible { display: block; }
-  .chat-widget-panel .brand-text h1 { font-size: .78rem; }
-  .chat-widget-panel .brand-crest { width: 34px; height: 34px; font-size: .9rem; }
-  .chat-widget-panel .topbar { padding: 12px 14px; }
-  .chat-widget-panel .topbar .status { margin-right: 32px; }
-  .chat-widget-panel .chat-scroll { padding-top: 12px; }
-  .chat-widget-panel .welcome { margin-top: 30px; }
-  .chat-widget-panel .welcome-hello, .chat-widget-panel .welcome-help { font-size: 2rem; }
-  .chat-widget-panel .chat-inner { padding: 0 14px; }
-  .chat-widget-panel .input-bar { padding: 10px 12px; }
-  .widget-close { position: absolute; z-index: 5; top: 10px; right: 10px; width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: #fff; color: var(--text-dark); cursor: pointer; }
-  @keyframes widgetIn { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
-  @media (max-width: 760px) {
-    .portal { min-height: 100vh; grid-template-columns: 1fr; gap: 36px; padding: 36px 22px 110px; align-content: center; }
-    .portal-copy h1 { margin: 28px 0 12px; font-size: 2.5rem; }
-    .staff-login { padding: 24px; }
-    .chat-launcher { right: 12px; bottom: 12px; }
-    .chat-widget-panel { right: 8px; bottom: 74px; width: calc(100vw - 16px); height: min(690px, calc(100vh - 90px)); }
-    .chat-widget-panel .sidebar { position: absolute; }
-    .chat-widget-panel .bubble-col { max-width: 88%; }
-  }
-
-  .portal-site { min-height: 100vh; background: #f7f8f4; }
-  .site-header {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 28px;
-    min-height: 82px;
-    padding: 0 6vw;
-    border-bottom: 1px solid rgba(16, 62, 42, 0.08);
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(8px);
-    box-shadow: 0 2px 16px rgba(15, 35, 22, 0.05);
-  }
-  .site-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    color: #123e2d;
-    text-decoration: none;
-    font-weight: 750;
-    white-space: nowrap;
-  }
-  .site-brand-mark {
-    width: 38px;
-    height: 38px;
-    display: grid;
-    place-items: center;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #c9a227 0%, #e6c85c 100%);
-    color: #0a4429;
-    font-size: 0.82rem;
-    font-weight: 800;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 8px 18px rgba(201, 162, 39, 0.25);
-  }
-  .site-brand small {
-    display: block;
-    margin-top: 3px;
-    color: #69786f;
-    font-size: .66rem;
-    font-weight: 600;
-    letter-spacing: .07em;
-    text-transform: uppercase;
-  }
-  .site-nav {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .site-nav a {
-    padding: 10px 12px;
-    border-radius: 10px;
-    color: #35483e;
-    font-size: .88rem;
-    text-decoration: none;
-    font-weight: 600;
-    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
-  }
-  .site-nav a:hover,
-  .site-nav a:focus-visible {
-    background: #f1f5ef;
-    color: #0a4429;
-    transform: translateY(-1px);
-  }
-  .login-menu-wrap { position: relative; }
-  .login-menu-button {
-    min-height: 42px;
-    padding: 0 17px;
-    border: 0;
-    border-radius: 999px;
-    background: linear-gradient(135deg, #0a4429 0%, #0f5c37 100%);
-    color: #fff;
-    font: inherit;
-    font-size: .87rem;
-    font-weight: 700;
-    cursor: pointer;
-    box-shadow: 0 10px 18px rgba(10, 68, 41, 0.18);
-  }
-  .login-menu { position: absolute; top: calc(100% + 10px); right: 0; z-index: 20; display: none; width: 218px; padding: 7px; border: 1px solid #dfe5de; background: #fff; box-shadow: 0 12px 30px rgba(12,43,27,.14); border-radius: 12px; }
-  .login-menu.open { display: grid; }
-  .login-menu button { padding: 11px 10px; border: 0; background: transparent; color: #1c3428; text-align: left; font: inherit; font-size: .87rem; cursor: pointer; border-radius: 8px; }
-  .login-menu button:hover { background: #f1f5ef; }
-  .portal-hero { position: relative; display: flex; align-items: center; min-height: clamp(560px, calc(100svh - 82px), 820px); overflow: hidden; background: #163b2d; }
-  .portal-hero::after { position: absolute; inset: 0; content: ''; background: linear-gradient(90deg, rgba(8,31,22,.83) 0%, rgba(8,31,22,.61) 43%, rgba(8,31,22,.16) 100%), linear-gradient(0deg, rgba(8,31,22,.32), transparent 38%); }
-  .hero-copy { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; max-width: 760px; padding: 72px 8vw 86px 10vw; }
-  .portal-hero .eyebrow { color: #f0d781; }
-  .hero-copy h1 { max-width: 700px; margin: 0; color: #fff; font: 500 3.7rem/1.06 Georgia, 'Times New Roman', serif; }
-  .hero-copy p { max-width: 530px; margin: 22px 0 28px; color: rgba(255,255,255,.88); font-size: 1rem; line-height: 1.7; }
-  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-  .action-primary, .action-secondary { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; text-decoration: none; font-size: .88rem; font-weight: 650; }
-  .action-primary { background: #0a4429; color: #fff; }
-  .action-secondary { border: 1px solid rgba(255,255,255,.7); color: #fff; }
-  .hero-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 45%; }
-  .quick-links { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid #e0e5de; background: #fff; }
-  .quick-link { min-height: 112px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 26px; border-right: 1px solid #e6ebe5; color: #183e2d; text-decoration: none; }
-  .quick-link:last-child { border-right: 0; }
-  .quick-link strong { display: block; font: 500 1.12rem Georgia, serif; }
-  .quick-link span { display: block; margin-top: 6px; color: #758178; font-size: .77rem; }
-  .quick-link b { color: #a17b21; font-size: 1.2rem; font-weight: 400; }
-  .portal-section { padding: 82px 10vw; scroll-margin-top: 24px; }
-  .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 30px; }
-  .section-heading h2 { max-width: 560px; margin: 0; color: #123e2d; font: 500 2.35rem/1.15 Georgia, 'Times New Roman', serif; }
-  .section-heading p { max-width: 390px; margin: 0; color: #66756c; font-size: .92rem; line-height: 1.6; }
-  #campus .section-heading p { color: #fff; }
-  .study-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #dce4dc; border: 1px solid #dce4dc; }
-  .study-item { min-height: 190px; padding: 26px; background: #fff; }
-  .study-item small { color: #a17b21; font-size: .7rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
-  .study-item h3 { margin: 20px 0 8px; color: #163e2c; font: 500 1.35rem Georgia, serif; }
-  .study-item p { margin: 0; color: #66756c; font-size: .86rem; line-height: 1.6; }
-  .student-section { background: #eaf0e8; }
-  #campus.student-section { position: relative; isolation: isolate; overflow: hidden; background: transparent; }
-  #campus.student-section::before { position: absolute; inset: -6px; z-index: -1; content: ''; }
-  #campus.student-section::before { background: url('/images/Students.jpeg') center 44% / cover no-repeat; }
-  .student-profile { display: grid; grid-template-columns: minmax(220px,.7fr) 1.3fr; border: 1px solid #d7e0d7; background: #fff; }
-  .profile-identity { padding: 30px; background: #103e2a; color: #fff; }
-  .profile-avatar { display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 22px; border: 1px solid rgba(255,255,255,.42); border-radius: 50%; color: #f0d781; font: 500 1.45rem Georgia, serif; }
-  .profile-identity h3 { margin: 0 0 6px; font: 500 1.45rem Georgia, serif; }
-  .profile-identity p { margin: 0; color: #c5d2c9; font-size: .84rem; line-height: 1.6; }
-  .profile-details { padding: 30px; }
-  .demo-label { display: inline-block; padding: 5px 8px; background: #f5f0df; color: #80651c; font-size: .68rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
-  .profile-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin: 24px 0; }
-  .profile-facts span { display: block; color: #7a867e; font-size: .72rem; }
-  .profile-facts strong { display: block; margin-top: 6px; color: #1d3d2d; font-size: .9rem; font-weight: 650; }
-  .profile-note { margin: 0; color: #67766d; font-size: .82rem; line-height: 1.6; }
-  .support-section { display: grid; grid-template-columns: .85fr 1.15fr; gap: 54px; align-items: start; }
-  .support-section > div > p { color: #66756c; font-size: .92rem; line-height: 1.7; }
-  .ticket-lookup { padding: 24px; border-top: 3px solid #c4a149; background: #fff; }
-  .ticket-lookup label { display: block; margin-bottom: 8px; color: #264637; font-size: .8rem; font-weight: 650; }
-  .ticket-lookup-row { display: flex; gap: 8px; }
-  .ticket-lookup input { min-width: 0; flex: 1; min-height: 44px; padding: 0 12px; border: 1px solid #d5ddd5; font: inherit; }
-  .ticket-lookup button { padding: 0 16px; border: 0; background: #0a4429; color: #fff; font: inherit; cursor: pointer; }
-  .ticket-result { min-height: 22px; margin-top: 12px; color: #53665a; font-size: .82rem; line-height: 1.5; }
-  .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 28px 10vw; background: #103e2a; color: #d4dfd7; font-size: .78rem; }
-  .site-footer a { color: #f0d781; text-decoration: none; }
-  .staff-login-dialog { width: min(420px, calc(100vw - 32px)); padding: 0; border: 1px solid #d8e1d8; background: #fff; box-shadow: 0 24px 80px rgba(5,30,17,.3); }
-  .staff-login-dialog::backdrop { background: rgba(10,30,19,.52); }
-  .staff-login { padding: 32px; background: #fff; border: 0; border-radius: 0; box-shadow: none; }
-  .dialog-head { display: flex; align-items: start; justify-content: space-between; gap: 15px; }
-  .dialog-close { width: 34px; height: 34px; border: 1px solid #e0e5df; background: #fff; color: #294837; font-size: 1.3rem; cursor: pointer; }
-  .assistant-embed .portal-site { display: none; }
-  .assistant-embed { width: 100%; height: 100%; min-height: 0; overflow: hidden; background: transparent; }
-  .assistant-embed .chat-launcher { right: 0; bottom: 0; width: 92px; height: 112px; padding: 0; }
-  .assistant-embed .chipo-mascot { width: 76px; height: 82px; }
-  .assistant-embed .chat-widget-panel { right: 0; bottom: 62px; }
-  .assistant-embed .chat-widget-panel.open { width: min(420px, calc(100vw - 24px)); height: min(680px, calc(100vh - 90px)); }
-  @media (max-width: 760px) {
-    .site-header { min-height: 70px; padding: 0 18px; }
-    .site-nav { display: none; }
-    .portal-hero { min-height: min(760px, calc(100svh - 70px)); }
-    .portal-hero::after { background: linear-gradient(90deg, rgba(8,31,22,.77), rgba(8,31,22,.32)), linear-gradient(0deg, rgba(8,31,22,.42), transparent 60%); }
-    .hero-copy { padding: 52px 24px 72px; }
-    .hero-copy h1 { font-size: 2.65rem; }
-    .hero-image { object-position: 58% center; }
-    .quick-links { grid-template-columns: repeat(2, 1fr); }
-    .quick-link { min-height: 90px; padding: 16px; border-bottom: 1px solid #e6ebe5; }
-    .portal-section { padding: 56px 22px; }
-    .section-heading { display: block; }
-    .section-heading h2 { margin-bottom: 14px; font-size: 2rem; }
-    .study-grid { grid-template-columns: 1fr; }
-    .study-item { min-height: 0; }
-    .student-profile, .support-section { grid-template-columns: 1fr; gap: 0; }
-    .profile-facts { gap: 18px 12px; }
-    .site-footer { align-items: flex-start; flex-direction: column; padding: 25px 22px; }
-    .assistant-embed .chat-widget-panel.open { right: 8px; bottom: 72px; width: calc(100vw - 16px); height: min(690px, calc(100vh - 84px)); }
-  }
-
-  .app {
-    display: flex;
-    height: 100vh;
-  }
-
-  /* ---------- Sidebar ---------- */
-  .sidebar {
-    width: 270px;
-    flex-shrink: 0;
-    background: linear-gradient(180deg, var(--green-deep) 0%, #063018 100%);
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    padding: 20px 16px;
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    margin-bottom: 18px;
-  }
-
-  .brand-crest {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    background: var(--gold);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: var(--green-deep);
-    flex-shrink: 0;
-  }
-
-  .brand-text h1 {
-    font-size: 0.95rem;
-    margin: 0;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-  }
-
-  .brand-text p {
-    margin: 2px 0 0;
-    font-size: 0.7rem;
-    color: var(--gold-light);
-    letter-spacing: 0.2px;
-  }
-
-  .new-chat-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.18);
-    color: #fff;
-    padding: 10px 14px;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.15s ease;
-    margin-bottom: 18px;
-  }
-
-  .new-chat-btn:hover { background: rgba(255,255,255,0.16); }
-
-  .sidebar-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: rgba(255,255,255,0.45);
-    margin: 8px 0 8px 4px;
-  }
-
-  .history-item {
-    padding: 9px 12px;
-    border-radius: 7px;
-    font-size: 0.82rem;
-    color: rgba(255,255,255,0.8);
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 2px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-  }
-
-  .history-item:hover { background: rgba(255,255,255,0.08); }
-  .history-item.active { background: rgba(255,255,255,0.14); color: #fff; }
-  
-  .history-item-text {
-    flex: 1;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .history-item-delete {
-    background: none;
-    border: none;
-    color: rgba(255,255,255,0.4);
-    cursor: pointer;
-    padding: 2px;
-    display: none;
-    flex-shrink: 0;
-    font-size: 0.8rem;
-  }
-  
-  .history-item:hover .history-item-delete {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .history-item-delete:hover {
-    color: rgba(255,255,255,0.8);
-  }
-
-  .sidebar-footer {
-    margin-top: auto;
-    padding-top: 14px;
-    border-top: 1px solid rgba(255,255,255,0.12);
-    font-size: 0.72rem;
-    color: rgba(255,255,255,0.5);
-    line-height: 1.5;
-  }
-
-  /* ---------- Main chat panel ---------- */
-  .main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  .topbar {
-    padding: 16px 28px;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .topbar h2 {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--green-deep);
-  }
-
-  .topbar .status {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .status .dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--green-bright);
-  }
-
-  .status .dot.listening { background: var(--red); animation: pulseDot 1s infinite; }
-
-  @keyframes pulseDot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  .chat-scroll {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px 0 12px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .chat-inner {
-    width: 100%;
-    max-width: 760px;
-    padding: 0 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .welcome {
-    text-align: left;
-    margin: 60px auto 40px;
-    width: 100%;
-    max-width: 720px;
-    animation: fadeIn 0.8s ease-out;
-  }
-
-  .welcome-hello {
-    font-size: 3.5rem;
-    font-weight: 500;
-    line-height: 1.25;
-    margin: 0;
-    background: linear-gradient(74deg, #3b82f6 0%, #8b5cf6 30%, #ec4899 70%, #f97316 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: -1px;
-  }
-
-  .welcome-help {
-    font-size: 3.5rem;
-    font-weight: 500;
-    line-height: 1.25;
-    margin: 0 0 40px 0;
-    color: var(--text-muted);
-    letter-spacing: -1px;
-  }
-
-  .suggestions-container {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    margin-top: 24px;
-    animation: fadeInUp 0.8s ease-out;
-  }
-
-  .suggestion-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text-dark);
-    padding: 14px 24px;
-    border-radius: 100px;
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  }
-
-  .suggestion-chip:hover {
-    background: #f6f5f1;
-    border-color: #d4d2ca;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  }
-
-  .suggestion-chip:active {
-    transform: translateY(0);
-  }
-
-  .suggestion-icon {
-    color: var(--text-muted);
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes fadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @media (max-width: 600px) {
-    .welcome-hello, .welcome-help {
-      font-size: 2.2rem;
-    }
-    .suggestion-chip {
-      padding: 10px 18px;
-      font-size: 0.88rem;
-    }
-  }
-
-  .msg-row {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-  }
-
-  .msg-row.user { flex-direction: row-reverse; }
-
-  .avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 700;
-    margin-top: 2px;
-  }
-
-  .avatar.bot { background: var(--green-deep); color: var(--gold-light); }
-  .avatar.user { background: var(--gold); color: var(--green-deep); }
-
-  .bubble-col {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    max-width: 78%;
-  }
-
-  .msg-row.user .bubble-col { align-items: flex-end; }
-
-  .bubble {
-    padding: 11px 15px;
-    border-radius: 14px;
-    font-size: 0.92rem;
-    line-height: 1.5;
-    white-space: pre-wrap;
-  }
-
-  .msg-row.bot .bubble {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-top-left-radius: 4px;
-    color: var(--text-dark);
-  }
-
-  .msg-row.user .bubble {
-    background: var(--green-mid);
-    color: #fff;
-    border-top-right-radius: 4px;
-  }
-
-  .bubble.thinking {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    padding: 14px 16px;
-  }
-
-  .bubble.thinking span {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-muted);
-    animation: bounce 1.2s infinite ease-in-out;
-  }
-
-  .bubble.thinking span:nth-child(2) { animation-delay: 0.15s; }
-  .bubble.thinking span:nth-child(3) { animation-delay: 0.3s; }
-
-  @keyframes bounce {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-    30% { transform: translateY(-4px); opacity: 1; }
-  }
-
-  .bubble.error {
-    background: #fdecec;
-    border: 1px solid #f3b9b9;
-    color: #8a2222;
-  }
-
-  .speak-btn {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 0.72rem;
-    cursor: pointer;
-    padding: 2px 4px;
-    align-self: flex-start;
-  }
-
-  .speak-btn:hover { color: var(--green-deep); }
-  .speak-btn.speaking { color: var(--green-bright); }
-  .speak-btn svg { flex-shrink: 0; }
-
-  /* ---------- Ticketing / escalation ---------- */
-  .talk-human-btn {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-dark);
-    font-size: 0.78rem;
-    padding: 6px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .talk-human-btn:hover { background: #eef0ec; }
-
-  .escalate-banner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 2px;
-    padding: 8px 10px;
-    background: #fff8e6;
-    border: 1px solid #ecd8a0;
-    border-radius: 10px;
-    font-size: 0.78rem;
-    color: #6b5a1e;
-    max-width: 340px;
-  }
-
-  .escalate-btn {
-    background: var(--green-deep);
-    color: #fff;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 7px;
-    font-size: 0.75rem;
-    cursor: pointer;
-  }
-  .escalate-btn:hover { background: var(--green-bright); }
-
-  .escalate-form {
-    margin-top: 4px;
-    padding: 10px 12px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 0.82rem;
-    max-width: 340px;
-  }
-
-  .escalate-form-intro { color: var(--text-muted); font-size: 0.78rem; }
-
-  .escalate-input {
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 7px 9px;
-    font-size: 0.82rem;
-    font-family: inherit;
-    resize: none;
-    width: 100%;
-  }
-
-  .escalate-actions { display: flex; gap: 8px; align-items: center; }
-
-  .escalate-submit-btn {
-    background: var(--green-deep);
-    color: #fff;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 7px;
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
-  .escalate-submit-btn:hover { background: var(--green-bright); }
-  .escalate-submit-btn:disabled { background: #c7cbc6; cursor: not-allowed; }
-
-  .escalate-cancel-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
-  .escalate-cancel-btn:hover { color: var(--text-dark); }
-
-  .escalate-error { color: var(--red); font-size: 0.75rem; min-height: 14px; }
-
-  .escalate-confirm {
-    margin-top: 4px;
-    padding: 9px 12px;
-    background: #eaf6ee;
-    border: 1px solid #b9dfc4;
-    border-radius: 10px;
-    font-size: 0.8rem;
-    color: #1c5c33;
-    max-width: 340px;
-  }
-
-  .ticket-contact-form {
-    display: grid;
-    gap: 7px;
-    margin-top: 7px;
-    padding: 10px;
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    background: #fff;
-    font-size: .76rem;
-  }
-  .ticket-contact-form p { margin: 0; color: var(--text-muted); }
-  .ticket-contact-form label { display: grid; gap: 4px; color: #35453b; font-weight: 600; }
-  .ticket-contact-form input {
-    width: 100%;
-    padding: 7px 9px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font: inherit;
-  }
-  .ticket-contact-form button {
-    justify-self: start;
-    padding: 7px 10px;
-    border: 0;
-    border-radius: 6px;
-    background: var(--green-deep);
-    color: #fff;
-    font: inherit;
-    cursor: pointer;
-  }
-  .ticket-contact-form button:disabled { opacity: .65; cursor: wait; }
-  .ticket-contact-error { min-height: 14px; color: var(--red); }
-
-  /* ---------- Input area ---------- */
-  .input-bar {
-    padding: 16px 24px 20px;
-    display: flex;
-    justify-content: center;
-    background: var(--bg);
-  }
-
-  .input-wrap {
-    width: 100%;
-    max-width: 760px;
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 8px 8px 8px 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    transition: border-color 0.15s ease;
-  }
-
-  .input-wrap.listening { border-color: var(--red); }
-
-  .input-wrap textarea {
-    flex: 1;
-    border: none;
-    outline: none;
-    resize: none;
-    font-size: 0.92rem;
-    font-family: inherit;
-    max-height: 120px;
-    padding: 8px 0;
-    color: var(--text-dark);
-    background: transparent;
-  }
-
-  .icon-btn {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background 0.15s ease, color 0.15s ease;
-  }
-
-  .icon-btn:hover { background: #eef0ec; }
-  .icon-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
-  .icon-btn[disabled]:hover { background: transparent; }
-
-  .icon-btn.listening {
-    background: var(--red);
-    color: #fff;
-    animation: micPulse 1s infinite;
-  }
-
-  .icon-btn.listening:hover { background: var(--red); }
-
-  @keyframes micPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(214,69,69,0.4); }
-    50% { box-shadow: 0 0 0 6px rgba(214,69,69,0); }
-  }
-
-  .send-btn {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    border: none;
-    background: var(--green-deep);
-    color: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background 0.15s ease;
-  }
-
-  .send-btn:hover { background: var(--green-bright); }
-  .send-btn:disabled { background: #c7cbc6; cursor: not-allowed; }
-
-  .disclaimer {
-    text-align: center;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    padding-bottom: 4px;
-  }
-
-  .mic-hint {
-    text-align: center;
-    font-size: 0.72rem;
-    color: var(--red);
-    padding-top: 4px;
-    min-height: 14px;
-  }
-
-  /* Mobile */
-  .menu-toggle { display: none; }
-
-  @media (max-width: 760px) {
-    .sidebar {
-      position: fixed;
-      left: 0; top: 0; bottom: 0;
-      transform: translateX(-100%);
-      transition: transform 0.2s ease;
-      z-index: 20;
-    }
-    .sidebar.open { transform: translateX(0); }
-    .menu-toggle {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 34px; height: 34px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--panel);
-      cursor: pointer;
-      margin-right: 10px;
-    }
-    .bubble-col { max-width: 88%; }
-  }
-</style>
+<link rel="icon" type="image/jpeg" href="/images/logo.jpeg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/site.css">
 </head>
 <body>
 
 <div class="portal-site">
+  <div class="site-backdrop" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="blob blob-3"></span>
+    <span class="shape shape-1"></span>
+    <span class="shape shape-2"></span>
+    <span class="shape shape-3"></span>
+    <span class="shape shape-4"></span>
+  </div>
+
   <header class="site-header">
     <a class="site-brand" href="#home" aria-label="University of Lusaka home">
-      <span class="site-brand-mark" aria-hidden="true">UL</span>
+      <span class="site-brand-mark" aria-hidden="true"><img src="/images/logo.jpeg" alt=""></span>
       <span>University of Lusaka<small>Passion for quality education</small></span>
     </a>
     <nav class="site-nav" aria-label="Main navigation">
@@ -938,66 +35,74 @@
       <a href="#student">Student hub</a>
       <a href="#support">Support</a>
     </nav>
-    <div class="login-menu-wrap">
-      <button class="login-menu-button" id="loginMenuButton" type="button" aria-expanded="false" aria-controls="loginMenu">Log in <span aria-hidden="true">⌄</span></button>
-      <div class="login-menu" id="loginMenu">
-        <button type="button" id="openStaffLogin">Staff login</button>
-        <button type="button" id="openStudentProfile">Student profile · demo</button>
+    <div class="site-actions">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false" aria-label="Switch to dark mode">
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
+      </button>
+      <div class="login-menu-wrap">
+        <button class="login-menu-button" id="loginMenuButton" type="button" aria-expanded="false" aria-controls="loginMenu">Log in <span aria-hidden="true">&#8964;</span></button>
+        <div class="login-menu" id="loginMenu">
+          <button type="button" id="openStudentPortal">Student portal login</button>
+          <button type="button" id="openStaffLogin">Staff login</button>
+          <button type="button" id="openStudentProfile">Student profile &middot; demo</button>
+        </div>
       </div>
     </div>
   </header>
 
   <main id="home">
     <section class="portal-hero">
+      <img class="hero-image" id="heroImage" data-parallax="0.16" src="/images/Homepage.jpg" data-placeholder="https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1400&q=85" alt="UNILUS graduates celebrating at their graduation ceremony">
+      <span class="hero-glow" aria-hidden="true"></span>
       <div class="hero-copy">
         <div class="eyebrow">University of Lusaka</div>
         <h1>Make your next chapter count.</h1>
         <p>Find your programme, discover campus life and get the support you need to move forward. Chipo, your student assistant, is here whenever you need a hand.</p>
         <div class="hero-actions">
-          <a class="action-primary" href="#study">Explore programmes <span aria-hidden="true">&nbsp;→</span></a>
+          <a class="action-primary" href="#study">Explore programmes <span aria-hidden="true">&nbsp;&#8594;</span></a>
           <a class="action-secondary" href="#student">Visit student hub</a>
         </div>
       </div>
-      <img class="hero-image" id="heroImage" src="/images/Homepage.jpg" data-placeholder="https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1400&q=85" alt="UNILUS graduates celebrating at their graduation ceremony">
     </section>
 
-    <nav class="quick-links" aria-label="Popular destinations">
-      <a class="quick-link" href="#study"><span><strong>Find your programme</strong><span>Explore areas of study</span></span><b aria-hidden="true">↗</b></a>
-      <a class="quick-link" href="#campus"><span><strong>Campus life</strong><span>See what student life offers</span></span><b aria-hidden="true">↗</b></a>
-      <a class="quick-link" href="#student"><span><strong>Student hub</strong><span>Open a sample student profile</span></span><b aria-hidden="true">↗</b></a>
-      <a class="quick-link" href="#support"><span><strong>Get support</strong><span>Track a staff support ticket</span></span><b aria-hidden="true">↗</b></a>
+    <nav class="quick-links" aria-label="Popular destinations" data-stagger="80">
+      <a class="quick-link reveal" href="#study" data-tilt data-float><span><strong>Find your programme</strong><span>Explore areas of study</span></span><b aria-hidden="true">&#8212;</b></a>
+      <a class="quick-link reveal" href="#campus" data-tilt data-float><span><strong>Campus life</strong><span>See what student life offers</span></span><b aria-hidden="true">&#8212;</b></a>
+      <a class="quick-link reveal" href="#student" data-tilt data-float><span><strong>Student hub</strong><span>Open a sample student profile</span></span><b aria-hidden="true">&#8212;</b></a>
+      <a class="quick-link reveal" href="#support" data-tilt data-float><span><strong>Get support</strong><span>Track a staff support ticket</span></span><b aria-hidden="true">&#8212;</b></a>
     </nav>
 
     <section class="portal-section" id="study">
       <div class="section-heading">
-        <div><div class="eyebrow">Learning with purpose</div><h2>Choose a direction. Build what comes next.</h2></div>
-        <p>Explore a few of the disciplines represented at UNILUS. Ask Chipo about admissions, entry requirements or the right department for your question.</p>
+        <div class="reveal"><div class="eyebrow">Learning with purpose</div><h2>Choose a direction. Build what comes next.</h2></div>
+        <p class="reveal">Explore a few of the disciplines represented at UNILUS. Ask Chipo about admissions, entry requirements or the right department for your question.</p>
       </div>
-      <div class="study-grid">
-        <article class="study-item"><small>01 · Business</small><h3>Business &amp; management</h3><p>Develop the practical skills and perspective to lead organisations and ideas.</p></article>
-        <article class="study-item"><small>02 · Technology</small><h3>Computing &amp; technology</h3><p>Build a foundation for a changing digital world, from systems to software.</p></article>
-        <article class="study-item"><small>03 · Public service</small><h3>Law &amp; social sciences</h3><p>Study the institutions and communities shaping Zambia and the region.</p></article>
+      <div class="study-grid" data-stagger="110">
+        <article class="study-item reveal" data-tilt data-float><small>01 &middot; Business</small><h3>Business &amp; management</h3><p>Develop the practical skills and perspective to lead organisations and ideas.</p></article>
+        <article class="study-item reveal" data-tilt data-float><small>02 &middot; Technology</small><h3>Computing &amp; technology</h3><p>Build a foundation for a changing digital world, from systems to software.</p></article>
+        <article class="study-item reveal" data-tilt data-float><small>03 &middot; Public service</small><h3>Law &amp; social sciences</h3><p>Study the institutions and communities shaping Zambia and the region.</p></article>
       </div>
     </section>
 
     <section class="portal-section student-section" id="campus">
       <div class="section-heading">
-        <div><div class="eyebrow">Beyond the lecture hall</div><h2>A campus shaped by ambition and community.</h2></div>
-        <p>University is a place to learn with others, find your voice and turn ideas into action. Start with the student hub or ask Chipo where to go next.</p>
+        <div class="reveal"><div class="eyebrow">Beyond the lecture hall</div><h2>A campus shaped by ambition and community.</h2></div>
+        <p class="reveal">University is a place to learn with others, find your voice and turn ideas into action. Start with the student hub or ask Chipo where to go next.</p>
       </div>
-      <div class="study-grid">
-        <article class="study-item"><small>Connect</small><h3>Find your people</h3><p>Meet fellow students and discover the communities that make campus feel like yours.</p></article>
-        <article class="study-item"><small>Grow</small><h3>Make room for new ideas</h3><p>Bring curiosity to class, campus and the work you hope to do after graduation.</p></article>
-        <article class="study-item"><small>Get help</small><h3>Support when you need it</h3><p>Chipo can answer common questions and connect unresolved issues with staff.</p></article>
+      <div class="study-grid" data-stagger="110">
+        <article class="study-item reveal" data-tilt data-float><small>Connect</small><h3>Find your people</h3><p>Meet fellow students and discover the communities that make campus feel like yours.</p></article>
+        <article class="study-item reveal" data-tilt data-float><small>Grow</small><h3>Make room for new ideas</h3><p>Bring curiosity to class, campus and the work you hope to do after graduation.</p></article>
+        <article class="study-item reveal" data-tilt data-float><small>Get help</small><h3>Support when you need it</h3><p>Chipo can answer common questions and connect unresolved issues with staff.</p></article>
       </div>
     </section>
 
     <section class="portal-section" id="student">
       <div class="section-heading">
-        <div><div class="eyebrow">Student hub · sample account</div><h2>A student view, ready to explore.</h2></div>
-        <p>This is a demo profile for preview only. It is not a real student account and does not require a sign-in.</p>
+        <div class="reveal"><div class="eyebrow">Student hub &middot; sample account</div><h2>A student view, ready to explore.</h2></div>
+        <p class="reveal">This is a demo profile for preview only. It is not a real student account and does not require a sign-in.</p>
       </div>
-      <article class="student-profile">
+      <article class="student-profile reveal" data-tilt>
         <div class="profile-identity">
           <div class="profile-avatar" aria-hidden="true">TP</div>
           <h3>Thandiwe Phiri</h3>
@@ -1009,7 +114,7 @@
             <div><span>Student number</span><strong>UL-DEMO-2026</strong></div>
             <div><span>Programme</span><strong>BSc Computer Science</strong></div>
             <div><span>Year of study</span><strong>Year 2</strong></div>
-            <div><span>Current status</span><strong>Enrolled · sample data</strong></div>
+            <div><span>Current status</span><strong>Enrolled &middot; sample data</strong></div>
           </div>
           <p class="profile-note">This profile contains fictional sample information. Use Chipo for general university questions; do not enter private student or account information in the demo.</p>
         </div>
@@ -1017,19 +122,19 @@
     </section>
 
     <section class="portal-section support-section student-section" id="support">
-      <div><div class="eyebrow">Student support</div><h2>Still need a person?</h2><p>Ask Chipo first. If your question needs staff attention, the assistant can create a support ticket. Enter its reference below to check its current status.</p></div>
-      <form class="ticket-lookup" id="ticketLookupForm">
+      <div class="reveal"><div class="eyebrow">Student support</div><h2>Still need a person?</h2><p>Ask Chipo first. If your question needs staff attention, the assistant can create a support ticket. Enter its reference below to check its current status.</p></div>
+      <form class="ticket-lookup reveal" id="ticketLookupForm" data-tilt>
         <label for="ticketReference">Track a support ticket</label>
         <div class="ticket-lookup-row"><input id="ticketReference" name="reference" placeholder="Enter ticket reference" required><button type="submit">Check status</button></div>
         <div class="ticket-result" id="ticketResult" role="status" aria-live="polite"></div>
       </form>
     </section>
   </main>
-  <footer class="site-footer"><span>University of Lusaka · Passion for quality education</span><a href="#home">Back to top ↑</a></footer>
+  <footer class="site-footer"><span>University of Lusaka &middot; Passion for quality education</span><a href="#home">Back to top &#8593;</a></footer>
 
   <dialog class="staff-login-dialog" id="staffLoginDialog">
     <form class="staff-login" id="portalLoginForm">
-      <div class="dialog-head"><div><div class="eyebrow">Staff access</div><h2>Sign in to tickets</h2><p>Access your department’s support queue.</p></div><button class="dialog-close" id="closeStaffLogin" type="button" aria-label="Close staff login">×</button></div>
+      <div class="dialog-head"><div><div class="eyebrow">Staff access</div><h2>Sign in to tickets</h2><p>Access your department&rsquo;s support queue.</p></div><button class="dialog-close" id="closeStaffLogin" type="button" aria-label="Close staff login">&times;</button></div>
 
       <div id="portalLoginFields">
         <label for="portalUsername">Username</label>
@@ -1044,123 +149,16 @@
         <label for="portalSignupPassword">Create password</label>
         <input id="portalSignupPassword" name="signupPassword" type="password" autocomplete="new-password">
         <label for="portalSignupDepartment">Department</label>
-        <select id="portalSignupDepartment" name="signupDepartment" style="width:100%; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(19,51,41,0.2); font: inherit;"></select>
+        <select id="portalSignupDepartment" name="signupDepartment" style="width:100%; margin-bottom: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(10,68,41,0.2); background: var(--bg); color: var(--text); font: inherit;"></select>
       </div>
 
-      <button type="button" id="togglePortalSignup" class="secondary-btn" style="width:100%; margin: 0 0 12px; border: 1px solid rgba(19,51,41,0.2); background: #fff; color: #0d3c28; border-radius: 8px; padding: 10px 12px; font-weight: 600; cursor: pointer;">Create account</button>
+      <button type="button" id="togglePortalSignup" class="secondary-btn" style="width:100%; margin: 0 0 12px; border: 1px solid rgba(10,68,41,0.2); background: transparent; color: var(--text-soft); border-radius: 999px; padding: 12px 14px; font-weight: 650; cursor: pointer;">Create account</button>
       <button id="portalLoginButton" type="submit">Sign in to staff tickets</button>
       <button id="portalSignupButton" type="button" style="display:none; width:100%; margin-top: 12px;">Create staff account</button>
       <div class="portal-error" id="portalLoginError" role="alert"></div>
     </form>
   </dialog>
 </div>
-
-<button class="chat-launcher" id="chatLauncher" type="button" aria-label="Ask Chipo" aria-expanded="false" aria-controls="chatWidgetPanel">
-  <svg class="chipo-mascot" id="chipoMascot" viewBox="0 0 100 108" role="img" aria-labelledby="chipoTitle">
-    <title id="chipoTitle">Chipo, your student assistant</title>
-    <path d="M50 29v11" stroke="#c9a227" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="50" cy="23" r="6" fill="#c9a227"/>
-    <rect x="5" y="58" width="13" height="19" rx="5" fill="#c9a227"/>
-    <rect x="82" y="58" width="13" height="19" rx="5" fill="#c9a227"/>
-    <path d="M34 40h32c9 0 15 7 15 16v21c0 9-6 15-15 15H56l-6 8-6-8H34c-9 0-15-6-15-15V56c0-9 6-16 15-16Z" fill="#c9a227"/>
-    <ellipse cx="41" cy="59" rx="7" ry="9" fill="#fff"/>
-    <ellipse cx="63" cy="59" rx="7" ry="9" fill="#fff"/>
-    <ellipse class="chipo-pupil" cx="42" cy="60" rx="3.2" ry="4.7" fill="#172923"/>
-    <ellipse class="chipo-pupil" cx="64" cy="60" rx="3.2" ry="4.7" fill="#172923"/>
-    <path d="M43 76c4 5 10 5 14 0" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
-  </svg>
-  <span class="chipo-label" aria-hidden="true">Ask Chipo</span>
-</button>
-<section class="chat-widget-panel" id="chatWidgetPanel" aria-label="Chipo student assistant">
-  <button class="widget-close" id="chatWidgetClose" type="button" aria-label="Close Chipo chat">×</button>
-<div class="app">
-
-  <!-- Sidebar -->
-  <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="Close chat history"></button>
-  <aside class="sidebar" id="sidebar">
-    <div class="brand">
-      <div class="brand-crest">UL</div>
-      <div class="brand-text">
-        <h1>University of Lusaka</h1>
-        <p>Passion for Quality Education</p>
-      </div>
-    </div>
-
-    <button class="new-chat-btn" id="newChatBtn">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-      New conversation
-    </button>
-
-    <div class="sidebar-label">Recent</div>
-    <div id="historyList">
-      <div class="history-item active" data-conv-id="current">Current conversation</div>
-    </div>
-    <button class="new-chat-btn" id="clearHistoryBtn" style="margin-top:8px; background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.1);">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6v12a2 2 0 002 2h4a2 2 0 002-2V6M10 11v6M14 11v6"/></svg>
-      Clear history
-    </button>
-
-    <div class="sidebar-footer">
-      UNILUS Student Assistant<br>
-      Answers are generated from official university materials.
-    </div>
-  </aside>
-
-  <!-- Main chat -->
-  <main class="main">
-    <div class="topbar">
-      <div style="display:flex; align-items:center;">
-        <div class="menu-toggle" id="menuToggle">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-        </div>
-        <h2>Student Assistant</h2>
-      </div>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div class="status"><span class="dot" id="statusDot"></span> <span id="statusText">Online</span></div>
-      </div>
-    </div>
-
-    <div class="chat-scroll" id="chatScroll">
-      <div class="chat-inner" id="chatInner">
-        <div class="welcome" id="welcome">
-          <h1 class="welcome-hello">Hello,</h1>
-          <h1 class="welcome-help">How can I help you today?</h1>
-          
-          <div class="suggestions-container">
-            <div class="suggestion-chip" onclick="handleSuggestion('Explain UNILUS admissions requirements')">
-              <svg class="suggestion-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <line x1="10" y1="9" x2="8" y2="9"/>
-              </svg>
-              <span>Explain UNILUS admissions requirements</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="input-bar">
-      <div style="width:100%; max-width:760px;">
-        <div class="input-wrap" id="inputWrap">
-          <textarea id="question" rows="1" placeholder="Message the Student Assistant..."></textarea>
-          <button class="icon-btn" id="micBtn" title="Voice input">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
-          </button>
-          <button class="send-btn" id="sendBtn" title="Send">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-          </button>
-        </div>
-        <div class="mic-hint" id="micHint"></div>
-        <div class="disclaimer">Responses are AI-generated and may not always be accurate.</div>
-      </div>
-    </div>
-  </main>
-
-</div>
-</section>
 
 <script>
   const heroImage = document.getElementById('heroImage');
@@ -1169,485 +167,6 @@
     heroImage.dataset.usingPlaceholder = 'true';
     heroImage.src = heroImage.dataset.placeholder;
   });
-
-  const chatInner = document.getElementById('chatInner');
-  const chatScroll = document.getElementById('chatScroll');
-  const questionEl = document.getElementById('question');
-  const sendBtn = document.getElementById('sendBtn');
-  const micBtn = document.getElementById('micBtn');
-  const inputWrap = document.getElementById('inputWrap');
-  const welcome = document.getElementById('welcome');
-  const sidebar = document.getElementById('sidebar');
-  const menuToggle = document.getElementById('menuToggle');
-  const newChatBtn = document.getElementById('newChatBtn');
-  const clearHistoryBtn = document.getElementById('clearHistoryBtn');
-  const statusDot = document.getElementById('statusDot');
-  const statusText = document.getElementById('statusText');
-  const micHint = document.getElementById('micHint');
-  const historyList = document.getElementById('historyList');
-  
-  // History tracking
-  let conversationHistory = [];
-  let currentConvId = 'current';
-  let savedConversations = {};
-  
-  // Load saved conversations from localStorage
-  function loadSavedConversations() {
-    const saved = localStorage.getItem('conversationHistory');
-    if (saved) {
-      try {
-        savedConversations = JSON.parse(saved);
-      } catch (e) {
-        savedConversations = {};
-      }
-    }
-  }
-  
-  // Save conversations to localStorage
-  function saveConversations() {
-    localStorage.setItem('conversationHistory', JSON.stringify(savedConversations));
-  }
-  
-  // Render the history list in the sidebar
-  function renderHistoryList() {
-    const items = historyList.querySelectorAll('.history-item:not([data-conv-id="current"])');
-    items.forEach(item => item.remove());
-    
-    // Add saved conversations in reverse order (newest first)
-    const convIds = Object.keys(savedConversations).reverse();
-    for (const convId of convIds) {
-      const conv = savedConversations[convId];
-      const item = document.createElement('div');
-      item.className = 'history-item';
-      item.setAttribute('data-conv-id', convId);
-      
-      const text = document.createElement('div');
-      text.className = 'history-item-text';
-      text.title = conv.title;
-      text.textContent = conv.title;
-      
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'history-item-delete';
-      deleteBtn.innerHTML = '×';
-      deleteBtn.title = 'Delete';
-      deleteBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        deleteConversation(convId);
-      });
-      
-      item.appendChild(text);
-      item.appendChild(deleteBtn);
-      item.addEventListener('click', () => loadConversation(convId));
-      
-      historyList.appendChild(item);
-    }
-  }
-  
-  // Save current conversation before starting new one
-  function saveCurrentConversation() {
-    if (conversationHistory.length > 0) {
-      const title = conversationHistory[0].question.substring(0, 50) + 
-                    (conversationHistory[0].question.length > 50 ? '...' : '');
-      const convId = Date.now().toString();
-      
-      // Get all message elements to reconstruct the conversation display
-      const messages = [];
-      chatInner.querySelectorAll('.msg-row').forEach(row => {
-        const text = row.querySelector('.bubble')?.textContent || '';
-        const isUser = row.classList.contains('user');
-        messages.push({ role: isUser ? 'user' : 'bot', text });
-      });
-      
-      savedConversations[convId] = {
-        title,
-        timestamp: new Date().toLocaleString(),
-        history: conversationHistory,
-        messages
-      };
-      
-      saveConversations();
-      renderHistoryList();
-    }
-  }
-  
-  // Load a saved conversation
-  function loadConversation(convId) {
-    const conv = savedConversations[convId];
-    if (!conv) return;
-    
-    currentConvId = convId;
-    conversationHistory = JSON.parse(JSON.stringify(conv.history));
-    
-    // Clear and rebuild chat display
-    chatInner.innerHTML = '';
-    for (const msg of conv.messages) {
-      addMessage(msg.role, msg.text);
-    }
-    
-    // Update active state in sidebar
-    historyList.querySelectorAll('.history-item').forEach(item => {
-      item.classList.toggle('active', item.getAttribute('data-conv-id') === convId);
-    });
-    
-    toggleSidebar(false);
-  }
-  
-  // Delete a saved conversation
-  function deleteConversation(convId) {
-    delete savedConversations[convId];
-    saveConversations();
-    renderHistoryList();
-  }
-  
-  // Clear all history
-  clearHistoryBtn.addEventListener('click', () => {
-    if (confirm('Delete all conversation history? This cannot be undone.')) {
-      savedConversations = {};
-      saveConversations();
-      renderHistoryList();
-    }
-  });
-
-  const sidebarScrim = document.getElementById('sidebarScrim');
-  function toggleSidebar(open) {
-    sidebar.classList.toggle('open', open);
-    sidebarScrim.classList.toggle('visible', open);
-    menuToggle.setAttribute('aria-expanded', String(open));
-  }
-  menuToggle.setAttribute('aria-expanded', 'false');
-  menuToggle.setAttribute('aria-label', 'Open chat history');
-  menuToggle.addEventListener('click', () => toggleSidebar(!sidebar.classList.contains('open')));
-  sidebarScrim.addEventListener('click', () => toggleSidebar(false));
-
-  newChatBtn.addEventListener('click', () => {
-    saveCurrentConversation();
-    chatInner.innerHTML = '';
-    chatInner.appendChild(welcome);
-    questionEl.value = '';
-    conversationHistory = [];
-    currentConvId = 'current';
-    
-    // Update active state in sidebar
-    historyList.querySelectorAll('.history-item').forEach(item => {
-      item.classList.toggle('active', item.getAttribute('data-conv-id') === 'current');
-    });
-    
-    toggleSidebar(false);
-    window.speechSynthesis && window.speechSynthesis.cancel();
-  });
-
-  // auto-grow textarea
-  questionEl.addEventListener('input', () => {
-    questionEl.style.height = 'auto';
-    questionEl.style.height = Math.min(questionEl.scrollHeight, 120) + 'px';
-  });
-
-  questionEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  sendBtn.addEventListener('click', sendMessage);
-
-  function scrollToBottom() {
-    chatScroll.scrollTop = chatScroll.scrollHeight;
-  }
-
-  async function readJsonResponse(response) {
-    const body = await response.text();
-    try {
-      return JSON.parse(body);
-    } catch {
-      throw new Error(`The server returned an unexpected response (HTTP ${response.status}). Restart the app server and try again.`);
-    }
-  }
-
-  function addMessage(role, text, meta = {}) {
-    if (welcome.parentNode) welcome.remove();
-
-    const row = document.createElement('div');
-    row.className = 'msg-row ' + role;
-
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar ' + (role === 'user' ? 'user' : 'bot');
-    avatar.textContent = role === 'user' ? 'S' : 'UL';
-
-    const col = document.createElement('div');
-    col.className = 'bubble-col';
-
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.textContent = text;
-    col.appendChild(bubble);
-
-    if (role === 'bot') {
-      const speakBtn = document.createElement('button');
-      speakBtn.className = 'speak-btn';
-      speakBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Listen';
-      speakBtn.addEventListener('click', () => toggleSpeak(text, speakBtn));
-      col.appendChild(speakBtn);
-
-      if (meta.needsHuman) {
-        const banner = document.createElement('div');
-        banner.className = 'escalate-confirm';
-        banner.textContent = "I couldn't answer confidently. Share your contact details below and I'll send your question to the right staff team.";
-        col.appendChild(banner);
-        if (meta.escalation) {
-          const contactForm = document.createElement('form');
-          contactForm.className = 'ticket-contact-form';
-          contactForm.innerHTML =
-            '<p>Your ticket is created only after you submit this form. Provide a name and at least one way for staff to contact you.</p>' +
-            '<label>Your name<input name="name" autocomplete="name" maxlength="255" required></label>' +
-            '<label>Email address<input name="email" type="email" autocomplete="email" maxlength="255"></label>' +
-            '<label>Phone number<input name="phone" type="tel" autocomplete="tel" maxlength="40"></label>' +
-            '<button type="submit">Send to staff</button>' +
-            '<span class="ticket-contact-error" role="status" aria-live="polite"></span>';
-          contactForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const formData = new FormData(contactForm);
-            const contact = {
-              name: String(formData.get('name') || '').trim(),
-              email: String(formData.get('email') || '').trim(),
-              phone: String(formData.get('phone') || '').trim(),
-            };
-            const error = contactForm.querySelector('.ticket-contact-error');
-            const button = contactForm.querySelector('button');
-            if (!contact.name) {
-              error.textContent = 'Enter your name.';
-              return;
-            }
-            if (!contact.email && !contact.phone) {
-              error.textContent = 'Enter an email address or phone number.';
-              return;
-            }
-            button.disabled = true;
-            error.textContent = '';
-            try {
-              const response = await fetch('/tickets', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...meta.escalation, ...contact }),
-              });
-              const data = await readJsonResponse(response);
-              if (!response.ok) throw new Error(data.error || 'Could not save your contact details.');
-              const confirmation = document.createElement('p');
-              confirmation.textContent = `Ticket ${data.ticket.id} was sent to ${data.ticket.departmentName || 'staff'} for follow-up.`;
-              contactForm.replaceChildren(confirmation);
-            }
-            catch (err) {
-              error.textContent = err.message || 'Could not save your contact details.';
-              button.disabled = false;
-            }
-          });
-          col.appendChild(contactForm);
-        }
-      }
-    }
-
-    row.appendChild(avatar);
-    row.appendChild(col);
-    chatInner.appendChild(row);
-    scrollToBottom();
-    return bubble;
-  }
-
-  function addThinkingBubble() {
-    if (welcome.parentNode) welcome.remove();
-
-    const row = document.createElement('div');
-    row.className = 'msg-row bot';
-    row.id = 'thinkingRow';
-
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar bot';
-    avatar.textContent = 'UL';
-
-    const col = document.createElement('div');
-    col.className = 'bubble-col';
-
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble thinking';
-    bubble.innerHTML = '<span></span><span></span><span></span>';
-    col.appendChild(bubble);
-
-    row.appendChild(avatar);
-    row.appendChild(col);
-    chatInner.appendChild(row);
-    scrollToBottom();
-  }
-
-  function removeThinkingBubble() {
-    const row = document.getElementById('thinkingRow');
-    if (row) row.remove();
-  }
-
-  async function sendMessage() {
-    const question = questionEl.value.trim();
-    if (!question) return;
-
-    addMessage('user', question);
-    questionEl.value = '';
-    questionEl.style.height = 'auto';
-    sendBtn.disabled = true;
-
-    addThinkingBubble();
-
-    try {
-      const res = await fetch('/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, history: conversationHistory })
-      });
-      const data = await readJsonResponse(res);
-
-      removeThinkingBubble();
-
-      if (data.error) {
-        const b = addMessage('bot', data.error);
-        b.classList.add('error');
-      } else {
-        addMessage('bot', data.answer, {
-          needsHuman: data.needsHuman,
-          confidence: data.confidence,
-          question,
-          escalation: data.escalation,
-        });
-        // Track this Q&A in history
-        conversationHistory.push({ question, answer: data.answer });
-      }
-    } catch (err) {
-      removeThinkingBubble();
-      const b = addMessage('bot', 'Could not reach the server. Make sure it is still running.');
-      b.classList.add('error');
-    } finally {
-      sendBtn.disabled = false;
-      questionEl.focus();
-    }
-  }
-
-  /* ---------------- Voice input (speech-to-text) ---------------- */
-  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let recognition = null;
-  let isListening = false;
-
-  if (!SpeechRecognitionAPI) {
-    micBtn.disabled = true;
-    micBtn.title = 'Voice input is not supported in this browser. Try Chrome or Edge.';
-  } else {
-    recognition = new SpeechRecognitionAPI();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onstart = () => {
-      isListening = true;
-      micBtn.classList.add('listening');
-      inputWrap.classList.add('listening');
-      statusDot.classList.add('listening');
-      statusText.textContent = 'Listening...';
-      micHint.textContent = '';
-    };
-
-    recognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
-      questionEl.value = transcript;
-      questionEl.style.height = 'auto';
-      questionEl.style.height = Math.min(questionEl.scrollHeight, 120) + 'px';
-    };
-
-    recognition.onerror = (event) => {
-      if (event.error === 'not-allowed' || event.error === 'permission-denied') {
-        micHint.textContent = 'Microphone access was blocked. Allow it in your browser settings to use voice input.';
-      } else if (event.error === 'no-speech') {
-        micHint.textContent = 'No speech detected. Try again.';
-      } else {
-        micHint.textContent = 'Voice input error: ' + event.error;
-      }
-    };
-
-    recognition.onend = () => {
-      isListening = false;
-      micBtn.classList.remove('listening');
-      inputWrap.classList.remove('listening');
-      statusDot.classList.remove('listening');
-      statusText.textContent = 'Online';
-
-      // auto-send if we captured something
-      if (questionEl.value.trim()) {
-        sendMessage();
-      }
-    };
-
-    micBtn.addEventListener('click', () => {
-      if (isListening) {
-        recognition.stop();
-      } else {
-        window.speechSynthesis && window.speechSynthesis.cancel();
-        questionEl.value = '';
-        try {
-          recognition.start();
-        } catch (e) {
-          // recognition already active; ignore
-        }
-      }
-    });
-  }
-
-  /* ---------------- Read aloud (text-to-speech) ---------------- */
-  let currentUtterance = null;
-  let currentSpeakBtn = null;
-
-  function toggleSpeak(text, btn) {
-    if (!window.speechSynthesis) {
-      micHint.textContent = 'Read-aloud is not supported in this browser.';
-      return;
-    }
-
-    // If this button is already speaking, stop it
-    if (currentUtterance && currentSpeakBtn === btn && window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-      resetSpeakBtn(btn);
-      return;
-    }
-
-    // Stop any other speech in progress
-    window.speechSynthesis.cancel();
-    if (currentSpeakBtn) resetSpeakBtn(currentSpeakBtn);
-
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1;
-    utter.onend = () => resetSpeakBtn(btn);
-    utter.onerror = () => resetSpeakBtn(btn);
-
-    currentUtterance = utter;
-    currentSpeakBtn = btn;
-    btn.classList.add('speaking');
-    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg> Stop';
-
-    window.speechSynthesis.speak(utter);
-  }
-
-  function resetSpeakBtn(btn) {
-    btn.classList.remove('speaking');
-    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Listen';
-    if (currentSpeakBtn === btn) {
-      currentUtterance = null;
-      currentSpeakBtn = null;
-    }
-  }
-
-  function handleSuggestion(text) {
-    questionEl.value = text;
-    questionEl.style.height = 'auto';
-    questionEl.style.height = Math.min(questionEl.scrollHeight, 120) + 'px';
-    sendMessage();
-  }
-  window.handleSuggestion = handleSuggestion;
 
   const portalLoginForm = document.getElementById('portalLoginForm');
   const portalLoginButton = document.getElementById('portalLoginButton');
@@ -1762,6 +281,11 @@
     loginMenuButton.setAttribute('aria-expanded', 'false');
     staffLoginDialog.showModal();
   });
+  document.getElementById('openStudentPortal').addEventListener('click', () => {
+    loginMenu.classList.remove('open');
+    loginMenuButton.setAttribute('aria-expanded', 'false');
+    window.location.assign('/portal');
+  });
   document.getElementById('closeStaffLogin').addEventListener('click', () => staffLoginDialog.close());
   document.getElementById('openStudentProfile').addEventListener('click', () => {
     loginMenu.classList.remove('open');
@@ -1779,7 +303,7 @@
     event.preventDefault();
     const reference = document.getElementById('ticketReference').value.trim();
     const result = document.getElementById('ticketResult');
-    result.textContent = 'Looking up ticket…';
+    result.textContent = 'Looking up ticket\u2026';
     try {
       const response = await fetch('/tickets/' + encodeURIComponent(reference));
       const data = await response.json();
@@ -1790,50 +314,10 @@
       result.textContent = error.message || 'Could not look up that ticket.';
     }
   });
-
-  const isAssistantEmbed = new URLSearchParams(window.location.search).get('assistant') === 'embed';
-  if (isAssistantEmbed) document.body.classList.add('assistant-embed');
-
-  const chatLauncher = document.getElementById('chatLauncher');
-  const chatWidgetPanel = document.getElementById('chatWidgetPanel');
-  const chatWidgetClose = document.getElementById('chatWidgetClose');
-  function toggleChatWidget(open) {
-    chatWidgetPanel.classList.toggle('open', open);
-    chatLauncher.setAttribute('aria-expanded', String(open));
-    if (isAssistantEmbed) window.parent.postMessage({ type: open ? 'chipo-widget-open' : 'chipo-widget-close' }, window.location.origin);
-    if (open) questionEl.focus();
-  }
-  const chipoMascot = document.getElementById('chipoMascot');
-  function makeChipoLookAt(clientX, clientY, viewportWidth, viewportHeight) {
-    const bounds = chipoMascot.getBoundingClientRect();
-    const centerX = bounds.left + bounds.width / 2;
-    const centerY = bounds.top + bounds.height / 2;
-    const horizontal = Math.max(-2, Math.min(2, (clientX - centerX) / Math.max(1, viewportWidth / 2) * 3));
-    const vertical = Math.max(-2, Math.min(2, (clientY - centerY) / Math.max(1, viewportHeight / 2) * 3));
-    chipoMascot.style.setProperty('--look-x', `${horizontal.toFixed(1)}px`);
-    chipoMascot.style.setProperty('--look-y', `${vertical.toFixed(1)}px`);
-  }
-  document.addEventListener('pointermove', (event) => {
-    makeChipoLookAt(event.clientX, event.clientY, window.innerWidth, window.innerHeight);
-  }, { passive: true });
-  window.addEventListener('message', (event) => {
-    if (event.origin !== window.location.origin || event.data?.type !== 'chipo-pointer') return;
-    makeChipoLookAt(event.data.x, event.data.y, event.data.width, event.data.height);
-  });
-  document.addEventListener('pointerleave', () => {
-    chipoMascot.style.setProperty('--look-x', '0px');
-    chipoMascot.style.setProperty('--look-y', '0px');
-  });
-  chatLauncher.addEventListener('click', () => toggleChatWidget(!chatWidgetPanel.classList.contains('open')));
-  chatWidgetClose.addEventListener('click', () => toggleChatWidget(false));
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') toggleChatWidget(false);
-  });
-
-  // Initialize on page load
-  loadSavedConversations();
-  renderHistoryList();
 </script>
+
+<script src="/site.js" defer></script>
+<script src="/chipobot.js"></script>
 
 </body>
 </html>

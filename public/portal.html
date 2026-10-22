@@ -1,0 +1,784 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>University of Lusaka Student Portal</title>
+<link rel="icon" type="image/jpeg" href="/images/logo.jpeg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/site.css">
+  <style>
+  .sp-body { background: #eef1ec; }
+
+  /* ---------- Sign in ---------- */
+  .sp-login { min-height: 100vh; display: grid; place-items: center; padding: 40px 20px; background: radial-gradient(ellipse at 20% 90%, rgba(201,162,39,.14), transparent 40%), linear-gradient(135deg, #f6f5f1 0%, #e9efe6 60%, #f8f7f2 100%); }
+  .sp-login-card { width: min(430px, 100%); padding: 36px; border: 1px solid var(--border); background: #fff; box-shadow: 0 24px 70px rgba(26,47,34,.12); }
+  .sp-login-card h1 { margin: 0 0 6px; color: var(--green-deep); font: 500 1.8rem Georgia, serif; }
+  .sp-login-card p { margin: 0 0 26px; color: var(--text-muted); font-size: .88rem; line-height: 1.6; }
+  .sp-login-card label { display: block; margin: 14px 0 6px; color: #35453b; font-size: .8rem; font-weight: 650; }
+  .sp-login-card input, .sp-login-card select { width: 100%; height: 44px; padding: 0 12px; border: 1px solid #d6ddd7; border-radius: 6px; font: inherit; background: #fff; color: var(--text); }
+  .sp-login-card select { padding-right: 30px; }
+  .sp-login-card button { width: 100%; height: 46px; margin-top: 22px; border: 0; border-radius: 6px; background: var(--green-deep); color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+  .sp-login-card button:disabled { opacity: .65; cursor: wait; }
+  .sp-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .sp-field-row > div { min-width: 0; }
+  .sp-login-card .sp-optional { color: var(--text-muted); font-weight: 500; }
+  .sp-login-card p.sp-auth-switch { margin: 18px 0 0; color: var(--text-muted); font-size: .82rem; }
+  .sp-login-card .sp-auth-link { display: inline; width: auto; height: auto; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--green-mid); font: inherit; font-size: .82rem; font-weight: 650; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  .sp-login-card .sp-auth-link:hover { color: var(--green-deep); }
+  .sp-login-card .sp-auth-link:focus-visible { outline: 2px solid var(--green-mid); outline-offset: 2px; }
+  @media (max-width: 460px) {
+    .sp-login-card { padding: 26px 22px; }
+  }
+  .sp-login-error { min-height: 18px; margin-top: 12px; color: var(--red); font-size: .82rem; }
+  .sp-login-back { display: inline-block; margin-top: 20px; color: var(--green-mid); font-size: .82rem; text-decoration: none; }
+  .sp-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; color: var(--green-deep); font-weight: 700; }
+
+  /* ---------- Shell ---------- */
+  .sp-shell { display: grid; grid-template-columns: 268px minmax(0, 1fr); min-height: 100vh; }
+
+  .sp-side { background: linear-gradient(180deg, #0a4429 0%, #063018 100%); color: #fff; padding: 20px 0 28px; }
+  .sp-side-brand { display: flex; align-items: center; gap: 11px; padding: 0 20px 18px; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .sp-side-brand b { display: block; font-size: .88rem; }
+  .sp-side-brand small { color: var(--gold-light); font-size: .68rem; }
+  .sp-nav { padding: 14px 0; }
+  .sp-nav button { display: block; width: 100%; padding: 9px 20px; border: 0; background: transparent; color: rgba(255,255,255,.82); font: inherit; font-size: .82rem; text-align: left; cursor: pointer; }
+  .sp-nav button:hover { background: rgba(255,255,255,.08); color: #fff; }
+  .sp-nav button.active { background: rgba(255,255,255,.14); color: #fff; font-weight: 650; box-shadow: inset 3px 0 0 var(--gold); }
+
+  .sp-main { display: flex; flex-direction: column; min-width: 0; }
+  .sp-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 16px; padding: 14px 28px; border-bottom: 1px solid var(--border); background: #fff; }
+  .sp-top-actions { display: flex; align-items: center; gap: 10px; }
+  .sp-top-actions a, .sp-top-actions button { padding: 8px 14px; border: 1px solid var(--border); background: #fff; color: #264637; font: inherit; font-size: .8rem; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .sp-top-actions a:hover, .sp-top-actions button:hover { background: #f4f7f2; }
+  .sp-top-actions .sp-ask { border-color: var(--green-deep); background: var(--green-deep); color: #fff; }
+
+  .sp-content { flex: 1; padding: 28px; }
+  .sp-breadcrumb { display: flex; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: .74rem; }
+  .sp-breadcrumb b { color: var(--green-deep); font-weight: 650; }
+  .sp-content h1 { margin: 14px 0 8px; color: var(--green-deep); font: 500 2rem Georgia, serif; }
+  .sp-content > p.lede { margin: 0 0 26px; color: #5c6961; font-size: .9rem; max-width: 640px; line-height: 1.6; }
+  .sp-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 24px; padding: 14px 18px; border-left: 3px solid var(--gold); background: #fffdf5; color: #5f5426; font-size: .84rem; }
+  .sp-notice a { color: var(--green-mid); font-weight: 650; }
+
+  .sp-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; align-items: start; }
+  .sp-panel { border: 1px solid var(--border); background: #fff; }
+  .sp-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .sp-panel-head h2 { margin: 0; color: var(--green-deep); font-size: .95rem; font-weight: 700; }
+  .sp-panel-head small { color: var(--text-muted); font-size: .72rem; }
+  .sp-panel-body { padding: 18px; }
+  .sp-panel-body p { margin: 0 0 10px; color: #5c6961; font-size: .84rem; line-height: 1.6; }
+  .sp-status { display: flex; align-items: center; gap: 9px; color: var(--green-bright); font-weight: 700; font-size: .92rem; }
+  .sp-status::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--green-bright); }
+  .sp-facts { display: grid; gap: 12px; margin-top: 16px; }
+  .sp-facts div { display: flex; justify-content: space-between; gap: 14px; font-size: .82rem; }
+  .sp-facts span { color: var(--text-muted); }
+  .sp-facts strong { color: #1d3d2d; font-weight: 650; text-align: right; }
+
+  .sp-announce { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .sp-announce:last-child { border-bottom: 0; }
+  .sp-announce h3 { margin: 0 0 4px; color: #1d3d2d; font-size: .85rem; font-weight: 700; line-height: 1.4; }
+  .sp-announce .sp-meta { color: var(--text-muted); font-size: .72rem; }
+  .sp-announce p { display: none; margin: 10px 0 0; color: #5c6961; font-size: .82rem; line-height: 1.65; white-space: pre-wrap; }
+  .sp-announce.open p { display: block; }
+  .sp-tag { display: inline-block; margin-right: 6px; padding: 2px 7px; background: #f5f0df; color: #80651c; font-size: .64rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+  .sp-tag-important { background: #fbeaea; color: #a33232; }
+  .sp-read { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--green-mid); font: inherit; font-size: .78rem; font-weight: 650; cursor: pointer; }
+
+  .sp-table-wrap { overflow-x: auto; }
+  .sp-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .sp-table th, .sp-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  .sp-table th { background: #f6f7f4; color: #35503f; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; }
+  .sp-table td a { color: var(--green-mid); font-weight: 650; text-decoration: none; }
+  .sp-table td a:hover { text-decoration: underline; }
+
+  .sp-service { border: 1px solid var(--border); background: #fff; padding: 26px; }
+  .sp-service h2 { margin: 0 0 8px; color: var(--green-deep); font: 500 1.5rem Georgia, serif; }
+  .sp-service p { margin: 0 0 18px; color: #5c6961; font-size: .87rem; line-height: 1.65; max-width: 620px; }
+  .sp-service .sp-facts { max-width: 620px; margin-bottom: 20px; }
+  .sp-service .sp-table { margin-bottom: 20px; }
+  .sp-service-actions { margin-top: 4px; }
+  .sp-service button { padding: 11px 18px; border: 0; background: var(--green-deep); color: #fff; font: inherit; font-size: .84rem; font-weight: 650; cursor: pointer; }
+  .sp-service button:hover { background: var(--green-bright); }
+
+  .sp-foot { padding: 22px 28px; border-top: 1px solid var(--border); background: #fff; color: var(--text-muted); font-size: .74rem; line-height: 1.7; }
+  .sp-foot b { color: var(--green-deep); }
+
+  .sp-form { max-width: 420px; margin-top: 8px; }
+  .sp-form label { display: block; margin: 12px 0 6px; color: #35453b; font-size: .8rem; font-weight: 650; }
+  .sp-form input { width: 100%; height: 42px; padding: 0 12px; border: 1px solid #d6ddd7; border-radius: 6px; font: inherit; }
+  .sp-form button { margin-top: 18px; padding: 11px 20px; border: 0; background: var(--green-deep); color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+  .sp-form .sp-msg { min-height: 18px; margin-top: 10px; color: var(--red); font-size: .8rem; }
+  .sp-form .sp-ok { color: var(--green-bright); }
+
+  .sp-boot { min-height: 100vh; display: grid; place-items: center; padding: 40px 20px; }
+  .sp-boot-card { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; color: var(--text-soft); }
+  .sp-boot-card .sp-brand-mark { width: 56px; height: 56px; flex: 0 0 auto; overflow: hidden; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.5), 0 18px 40px -18px rgba(10, 68, 41, 0.6); }
+  .sp-boot-card .sp-brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .sp-boot-card p { margin: 0; font-size: 0.92rem; font-weight: 600; color: var(--text); }
+  .sp-boot-spinner { width: 30px; height: 30px; border-radius: 50%; border: 3px solid rgba(21, 122, 70, 0.2); border-top-color: var(--brand-bright); animation: spBootSpin 0.9s linear infinite; }
+  @keyframes spBootSpin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 900px) {
+    .sp-shell { grid-template-columns: 1fr; }
+    .sp-content { padding: 22px 16px; }
+    .sp-top { padding: 12px 16px; }
+  }
+</style>
+<link rel="stylesheet" href="/portal.css">
+</head>
+<body class="sp-body portal-site">
+
+<!-- ================= Session restore ================= -->
+<section class="sp-login" id="spBoot" hidden aria-busy="true">
+  <div class="sp-boot-card">
+    <span class="sp-brand-mark"><img src="/images/logo.jpeg" alt=""></span>
+    <span class="sp-boot-spinner" aria-hidden="true"></span>
+    <p>Restoring your session</p>
+  </div>
+</section>
+
+<!-- ================= Sign in ================= -->
+<section class="sp-login" id="spLogin">
+  <div class="site-backdrop" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="blob blob-3"></span>
+    <span class="shape shape-1"></span>
+    <span class="shape shape-2"></span>
+  </div>
+  <div class="sp-login-card">
+    <div class="sp-brand"><span class="sp-brand-mark"><img src="/images/logo.jpeg" alt=""></span><span>University of Lusaka<small style="display:block;color:var(--text-muted);font-size:.68rem;font-weight:500;">Student Portal</small></span></div>
+
+    <form id="spLoginForm" class="sp-auth-form">
+      <h1>Student sign in</h1>
+      <p>Use your student number and password to open your student portal. Chipo, the student assistant, stays available with you once you are signed in.</p>
+
+      <label for="spStudentNumber">Student number</label>
+      <input id="spStudentNumber" name="studentNumber" autocomplete="username" required placeholder="e.g. BIT23220920">
+
+      <label for="spPassword">Password</label>
+      <input id="spPassword" name="password" type="password" autocomplete="current-password" required>
+
+      <button id="spLoginButton" type="submit">Sign in to the student portal</button>
+      <div class="sp-login-error" id="spLoginError" role="alert"></div>
+      <p class="sp-auth-switch">New student? <button type="button" class="sp-auth-link" id="spShowSignup">Create an account</button></p>
+    </form>
+
+    <form id="spSignupForm" class="sp-auth-form" hidden>
+      <h1>Create your account</h1>
+      <p>Set up your University of Lusaka student account to open the portal and let Chipo read your own records.</p>
+
+      <label for="spSignupName">Full name</label>
+      <input id="spSignupName" name="fullName" autocomplete="name" required placeholder="e.g. John Sichula" maxlength="120">
+
+      <label for="spSignupNumber">Student number</label>
+      <input id="spSignupNumber" name="studentNumber" autocomplete="username" required placeholder="e.g. BIT23220920" maxlength="20">
+
+      <div class="sp-field-row">
+        <div>
+          <label for="spSignupProgramme">Programme</label>
+          <input id="spSignupProgramme" name="programme" list="spProgrammeOptions" placeholder="e.g. BSc Computer Science" maxlength="120">
+          <datalist id="spProgrammeOptions">
+            <option value="BSc Computer Science"></option>
+            <option value="BSc Information Technology"></option>
+            <option value="Diploma in Information Technology"></option>
+            <option value="Bachelor of Laws (LLB)"></option>
+            <option value="Bachelor of Business Administration"></option>
+            <option value="Bachelor of Accountancy"></option>
+            <option value="BSc Nursing"></option>
+          </datalist>
+        </div>
+        <div>
+          <label for="spSignupYear">Year of study</label>
+          <select id="spSignupYear" name="yearOfStudy">
+            <option value="Year 1">Year 1</option>
+            <option value="Year 2">Year 2</option>
+            <option value="Year 3">Year 3</option>
+            <option value="Year 4">Year 4</option>
+            <option value="Year 5">Year 5</option>
+            <option value="Year 6">Year 6</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sp-field-row">
+        <div>
+          <label for="spSignupEmail">Email <span class="sp-optional">(optional)</span></label>
+          <input id="spSignupEmail" name="email" type="email" autocomplete="email" placeholder="you@student.unilus.edu.zm" maxlength="255">
+        </div>
+        <div>
+          <label for="spSignupPhone">Phone <span class="sp-optional">(optional)</span></label>
+          <input id="spSignupPhone" name="phone" type="tel" autocomplete="tel" placeholder="+260 ..." maxlength="40">
+        </div>
+      </div>
+
+      <label for="spSignupPassword">Password</label>
+      <input id="spSignupPassword" name="password" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters">
+
+      <label for="spSignupConfirm">Confirm password</label>
+      <input id="spSignupConfirm" name="confirmPassword" type="password" autocomplete="new-password" required>
+
+      <button id="spSignupButton" type="submit">Create my account</button>
+      <div class="sp-login-error" id="spSignupError" role="alert"></div>
+      <p class="sp-auth-switch">Already registered? <button type="button" class="sp-auth-link" id="spShowLogin">Sign in instead</button></p>
+    </form>
+
+    <a class="sp-login-back" href="/">&larr; Back to the university website</a>
+  </div>
+</section>
+
+<!-- ================= Portal ================= -->
+<div class="sp-shell" id="spPortal" hidden>
+  <div class="site-backdrop" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="shape shape-1"></span>
+    <span class="shape shape-2"></span>
+  </div>
+  <aside class="sp-side" id="spSide">
+    <div class="sp-side-brand"><span class="sp-brand-mark"><img src="/images/logo.jpeg" alt=""></span><span><b>University of Lusaka</b><small>Student Portal</small></span><button class="sp-side-close" id="spMenuClose" type="button" aria-label="Close menu">&times;</button></div>
+    <nav class="sp-nav" id="spNav" aria-label="Student portal services"></nav>
+  </aside>
+  <div class="sp-drawer-backdrop" id="spDrawerBackdrop" hidden></div>
+
+  <div class="sp-main">
+    <header class="sp-top">
+      <button class="sp-burger" id="spMenuButton" type="button" aria-controls="spSide" aria-expanded="false" aria-label="Open portal menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="sp-breadcrumb" id="spBreadcrumb"></div>
+      <div class="sp-top-actions">
+        <button class="theme-toggle" id="portalThemeToggle" type="button" aria-pressed="false" aria-label="Switch to dark mode">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
+        </button>
+        <button type="button" class="sp-ask" id="spAskButton">Ask Chipo</button>
+        <button type="button" id="spLogoutButton">Log out</button>
+        <a href="/">Website</a>
+      </div>
+    </header>
+
+    <main class="sp-content" id="spContent"></main>
+
+    <footer class="sp-foot">
+      <b>University of Lusaka</b> Â· University of Lusaka Student Portal<br>
+      Copyright &copy; 2011-2026 | Powered by EduRole | Customized by University of Lusaka ICT<br>
+      EduRole is licensed under a Creative Commons Attribution-NC-ND 3.0 Unported License.
+    </footer>
+  </div>
+</div>
+
+<script src="/site.js"></script>
+<script src="/chipobot.js"></script>
+<script>
+  const TOKEN_KEY = 'chipo_student_token';
+  // Sessions last for this tab only: opening the portal in a new tab or after
+  // closing the browser always asks for the student number and password again.
+  const tokenStore = window.sessionStorage;
+  // Drop any session left behind by the older persistent-storage version.
+  try { localStorage.removeItem(TOKEN_KEY); } catch (err) { /* storage unavailable */ }
+  // This page is the student portal, so Chipo talks to the portal chat
+  // endpoint and may read the signed-in student's records.
+  window.chipo && window.chipo.setScope('portal');
+  const spBoot = document.getElementById('spBoot');
+  const spLogin = document.getElementById('spLogin');
+  const spPortal = document.getElementById('spPortal');
+  const spContent = document.getElementById('spContent');
+  const spNav = document.getElementById('spNav');
+  const spLoginForm = document.getElementById('spLoginForm');
+  const spLoginError = document.getElementById('spLoginError');
+  const spLoginButton = document.getElementById('spLoginButton');
+  const spSignupForm = document.getElementById('spSignupForm');
+  const spSignupError = document.getElementById('spSignupError');
+  const spSignupButton = document.getElementById('spSignupButton');
+  const spBreadcrumb = document.getElementById('spBreadcrumb');
+  const spMenuButton = document.getElementById('spMenuButton');
+  const spMenuClose = document.getElementById('spMenuClose');
+  const spDrawerBackdrop = document.getElementById('spDrawerBackdrop');
+  const spMobileMenu = window.matchMedia('(max-width: 900px)');
+
+  let portalData = null;
+  let activeService = 'home';
+
+  function token() { return tokenStore.getItem(TOKEN_KEY); }
+
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token() ? { Authorization: 'Bearer ' + token() } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || 'Something went wrong.');
+    return body;
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[character]));
+  }
+
+  function formatDate(value) {
+    if (!value) return '';
+    const date = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString(undefined, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function showLogin(message) {
+    closeMenu(false);
+    spBoot.hidden = true;
+    spPortal.hidden = true;
+    spLogin.hidden = false;
+    toggleAuthForm(false);
+    spLoginError.textContent = message || '';
+  }
+
+  function showBoot() {
+    spBoot.hidden = false;
+    spLogin.hidden = true;
+    spPortal.hidden = true;
+  }
+
+  function toggleAuthForm(showSignup) {
+    spLoginForm.hidden = showSignup;
+    spSignupForm.hidden = !showSignup;
+    spLoginError.textContent = '';
+    spSignupError.textContent = '';
+    if (showSignup) document.getElementById('spSignupName').focus();
+    else document.getElementById('spStudentNumber').focus();
+  }
+
+  function showPortal() {
+    spBoot.hidden = true;
+    spLogin.hidden = true;
+    spPortal.hidden = false;
+    setTimeout(applyReveal, 100);
+  }
+
+  function renderNav() {
+    spNav.innerHTML = '';
+    for (const service of portalData.services) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = service.label;
+      button.dataset.service = service.key;
+      button.addEventListener('click', () => selectService(service));
+      spNav.appendChild(button);
+    }
+    markActiveNav();
+  }
+
+  function markActiveNav() {
+    spNav.querySelectorAll('button').forEach((button) => {
+      const active = button.dataset.service === activeService;
+      button.classList.toggle('active', active);
+      if (active) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+  }
+
+  function setMenu(open) {
+    document.body.classList.toggle('sp-menu-open', open);
+    spMenuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+    spDrawerBackdrop.hidden = !open;
+  }
+
+  function openMenu() {
+    if (!spMobileMenu.matches) return;
+    setMenu(true);
+    spMenuClose.focus({ preventScroll: true });
+  }
+
+  function closeMenu(restoreFocus = true) {
+    if (!document.body.classList.contains('sp-menu-open')) return;
+    setMenu(false);
+    if (restoreFocus) spMenuButton.focus({ preventScroll: true });
+  }
+
+  spMenuButton.addEventListener('click', () => {
+    if (document.body.classList.contains('sp-menu-open')) closeMenu();
+    else openMenu();
+  });
+  spMenuClose.addEventListener('click', () => closeMenu());
+  spDrawerBackdrop.addEventListener('click', () => closeMenu());
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMenu();
+  });
+  const onMenuBreakpoint = () => { if (!spMobileMenu.matches) closeMenu(false); };
+  if (spMobileMenu.addEventListener) spMobileMenu.addEventListener('change', onMenuBreakpoint);
+  else spMobileMenu.addListener(onMenuBreakpoint);
+
+  function announcementsPanel() {
+    const items = portalData.announcements.map((item, index) => `
+      <article class="sp-announce" data-announce="${index}">
+        <h3>${item.isImportant ? '<span class="sp-tag sp-tag-important">Important</span>' : ''}${escapeHtml(item.title)}</h3>
+        <div class="sp-meta">${escapeHtml(item.category || 'Notice')} Â· ${formatDate(item.publishedAt)} Â· ðŸ“Ž</div>
+        <p>${escapeHtml(item.body)}</p>
+        <button class="sp-read" type="button">Read more â†’</button>
+      </article>`).join('');
+
+    return `
+      <section class="sp-panel sp-panel-announce">
+        <div class="sp-panel-head">
+          <h2>Announcements</h2>
+          <small>Showing ${portalData.announcements.length} of ${portalData.announcementCount}</small>
+        </div>
+        ${items || '<div class="sp-panel-body"><p>No announcements right now.</p></div>'}
+      </section>`;
+  }
+
+  function timetablesPanel() {
+    const rows = portalData.timetables.map((item) => `
+      <tr>
+        <td data-label="Name">${escapeHtml(item.name)}</td>
+        <td data-label="Academic year">${escapeHtml(item.academicYear)}</td>
+        <td data-label="Semester">${escapeHtml(item.semester)}</td>
+        <td data-label="Action">${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Open</a>` : '<a href="#" data-timetable="' + escapeHtml(item.name) + '">Open</a>'}</td>
+      </tr>`).join('');
+
+    return `
+      <section class="sp-panel sp-panel-timetable">
+        <div class="sp-panel-head"><h2>Timetable Links</h2></div>
+        <div class="sp-table-wrap">
+          <table class="sp-table">
+            <thead><tr><th>Name</th><th>Academic Year</th><th>Semester</th><th>Action</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function homeStats() {
+    const sample = (key) => {
+      const service = portalData.services.find((item) => item.key === key);
+      return (service && service.sample) || {};
+    };
+    const profile = portalData.profile;
+
+    const quotes = sample('quotations');
+    const outstandingRow = (quotes.rows || []).find((row) => /outstanding/i.test(String(row[0])));
+    const balance = outstandingRow ? outstandingRow[1] : '\u2014';
+    const feeState = outstandingRow ? outstandingRow[2] : 'No balance due';
+
+    const registration = sample('course-registration');
+    const credits = (registration.facts && registration.facts['Total credits']) || '\u2014';
+    const registrationRows = registration.rows || [];
+    const registeredCourses = registrationRows.filter((row) => /^registered$/i.test(String(row[3] || ''))).length;
+    const courseMeta = registrationRows.length
+      ? `${registeredCourses} of ${registrationRows.length} courses registered`
+      : 'No registrations yet';
+    const courseProgress = registrationRows.length
+      ? Math.round((registeredCourses / registrationRows.length) * 100)
+      : 0;
+
+    const payments = sample('payments').facts || {};
+    const paid = String(payments['Total paid'] || '\u2014').replace(/\s*ZMW$/i, '');
+
+    const icons = {
+      balance: '<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.2" fill="currentColor" stroke="none"/>',
+      credits: '<path d="M12 6.5C10.2 5.2 8 4.8 4 5v13c4-.2 6.2.2 8 1.5 1.8-1.3 4-1.7 8-1.5V5c-4-.2-6.2.2-8 1.5z"/><path d="M12 6.5v13"/>',
+      paid: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6"/><path d="M9 13.5l2 2 4-4"/>',
+      status: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/>',
+    };
+
+    const cards = [
+      { label: 'Outstanding balance', value: 'ZMW ' + balance, meta: feeState, tone: 'gold', icon: 'balance', service: 'quotations' },
+      { label: 'Registered credits', value: credits, meta: courseMeta, tone: 'green', icon: 'credits', progress: courseProgress, service: 'course-registration' },
+      { label: 'Paid this semester', value: 'ZMW ' + paid, meta: 'View receipts in Payments', tone: 'green', icon: 'paid', service: 'payments' },
+      { label: 'Account status', value: profile.status, meta: (profile.programme || 'Student') + (profile.yearOfStudy ? ' \u00b7 ' + profile.yearOfStudy : ''), tone: 'green', icon: 'status', live: /^active$/i.test(String(profile.status || '')), service: 'personal-information' },
+    ];
+
+    return `
+      <section class="sp-stats" aria-label="Account at a glance">
+        ${cards.map((card) => `
+          <button type="button" class="sp-stat sp-stat-${card.tone}" data-service-link="${card.service}">
+            <span class="sp-stat-top">
+              <span class="sp-stat-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icons[card.icon]}</svg>
+              </span>
+              <span class="sp-stat-label">${escapeHtml(card.label)}</span>
+              <svg class="sp-stat-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            </span>
+            <strong class="sp-stat-value">${card.live ? '<span class="sp-stat-live" aria-hidden="true"></span>' : ''}${escapeHtml(card.value)}</strong>
+            <span class="sp-stat-meta">${escapeHtml(card.meta)}</span>
+            ${typeof card.progress === 'number' ? `<span class="sp-stat-bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, card.progress))}%"></span></span>` : ''}
+          </button>`).join('')}
+      </section>`;
+  }
+
+  function homeView() {
+    const profile = portalData.profile;
+    return `
+      <h1>Welcome, ${escapeHtml(profile.fullName.toUpperCase())}</h1>
+      <p class="lede">Review notices, shortcuts, documents, and role-specific updates from one workspace. This dashboard adapts to your active role and workflow state.</p>
+
+      <div class="sp-notice">
+        <span>Please take the time to enter your profile information first, you can do this <a href="#" data-service-link="personal-information">here</a>.</span>
+      </div>
+
+      <div class="sp-panels">
+        ${homeStats()}
+
+        <section class="sp-panel sp-panel-account">
+          <div class="sp-panel-head"><h2>Account Status</h2></div>
+          <div class="sp-panel-body">
+            <div class="sp-status">${escapeHtml(profile.status)}</div>
+            <div class="sp-facts">
+              <div><span>Student number</span><strong>${escapeHtml(profile.studentNumber)}</strong></div>
+              <div><span>Role</span><strong>${escapeHtml(profile.role)}</strong></div>
+              <div><span>Programme</span><strong>${escapeHtml(profile.programme || 'â€”')}</strong></div>
+              <div><span>Year of study</span><strong>${escapeHtml(profile.yearOfStudy || 'â€”')}</strong></div>
+              <div><span>Email</span><strong>${escapeHtml(profile.email || 'â€”')}</strong></div>
+              <div><span>Phone</span><strong>${escapeHtml(profile.phone || 'â€”')}</strong></div>
+            </div>
+          </div>
+        </section>
+
+        ${announcementsPanel()}
+        ${timetablesPanel()}
+      </div>`;
+  }
+
+  function sampleFacts(facts) {
+    const entries = Object.entries(facts || {});
+    if (!entries.length) return '';
+    return `<div class="sp-facts">${entries.map(([label, value]) =>
+      `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div>`;
+  }
+
+  function sampleTable(columns, rows) {
+    if (!columns || !columns.length) return '';
+    return `
+      <div class="sp-table-wrap">
+        <table class="sp-table">
+          <thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
+          <tbody>${rows.map((row) => `<tr>${row.map((cell, index) => `<td data-label="${escapeHtml(columns[index] || '')}">${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function serviceView(service) {
+    const sample = service.sample || {};
+    return `
+      <div class="sp-service">
+        <h2>${escapeHtml(service.label)}</h2>
+        ${sample.intro ? `<p>${escapeHtml(sample.intro)}</p>` : ''}
+        ${sampleFacts(sample.facts)}
+        ${sampleTable(sample.columns, sample.rows)}
+        <div class="sp-service-actions">
+          <button type="button" data-ask="${escapeHtml(service.label)}">Ask Chipo about ${escapeHtml(service.label)}</button>
+        </div>
+      </div>`;
+  }
+
+  function render() {
+    const service = portalData.services.find((item) => item.key === activeService);
+    if (activeService === 'home') {
+      spContent.innerHTML = homeView();
+    } else if (service) {
+      spContent.innerHTML = serviceView(service);
+    } else {
+      spContent.innerHTML = homeView();
+    }
+
+    if (spBreadcrumb) {
+      if (activeService === 'home') {
+        spBreadcrumb.innerHTML = '<b>Student Home</b>';
+      } else {
+        const label = service ? service.label : 'Student Home';
+        spBreadcrumb.innerHTML = '<a href="#" id="spCrumbHome">Student Home</a> <span aria-hidden="true">/</span> <b>' + escapeHtml(label) + '</b>';
+        const homeLink = document.getElementById('spCrumbHome');
+        if (homeLink) {
+          homeLink.addEventListener('click', (event) => {
+            event.preventDefault();
+            activeService = 'home';
+            closeMenu(false);
+            render();
+          });
+        }
+      }
+    }
+
+    markActiveNav();
+    wireContent();
+    applyReveal();
+  }
+
+  function applyReveal() {
+    if (typeof IntersectionObserver === 'undefined') {
+      document.querySelectorAll('.sp-panel, .sp-service, .sp-announce, .sp-stats').forEach((el) => el.classList.add('reveal', 'is-visible'));
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -6% 0px' });
+    document.querySelectorAll('.sp-panel, .sp-service, .sp-announce, .sp-stats').forEach((el) => {
+      if (!el.classList.contains('reveal')) el.classList.add('reveal');
+      observer.observe(el);
+    });
+  }
+  function wireContent() {
+    spContent.querySelectorAll('.sp-announce').forEach((card) => {
+      const readButton = card.querySelector('.sp-read');
+      readButton.addEventListener('click', () => {
+        const open = card.classList.toggle('open');
+        readButton.textContent = open ? 'Show less â†‘' : 'Read more â†’';
+      });
+    });
+
+    spContent.querySelectorAll('[data-ask]').forEach((button) => {
+      button.addEventListener('click', () => {
+        window.chipo.ask('How do I use the ' + button.dataset.ask + ' service on the University of Lusaka student portal?');
+      });
+    });
+
+    spContent.querySelectorAll('[data-service-link]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        const service = portalData.services.find((item) => item.key === link.dataset.serviceLink);
+        if (service) { activeService = service.key; closeMenu(false); render(); }
+      });
+    });
+
+    spContent.querySelectorAll('[data-timetable]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        window.chipo.ask('Where can I find the ' + link.dataset.timetable + ' timetable?');
+      });
+    });
+  }
+
+  function selectService(service) {
+    activeService = service.key;
+    closeMenu(false);
+    render();
+  }
+
+  async function loadPortal() {
+    try {
+      portalData = await api('/student/portal');
+      showPortal();
+      renderNav();
+      render();
+      // A session restored from a previous visit still gives Chipo access.
+      window.chipo && window.chipo.setSession(token(), portalData.profile);
+    } catch (error) {
+      tokenStore.removeItem(TOKEN_KEY);
+      window.chipo && window.chipo.clearSession();
+      showLogin(error.message);
+    }
+  }
+
+  async function logout() {
+    try { await api('/student/logout', { method: 'POST' }); } catch (error) { /* token is discarded either way */ }
+    tokenStore.removeItem(TOKEN_KEY);
+    portalData = null;
+    // Chipo loses portal access together with the session.
+    window.chipo && window.chipo.clearSession();
+    showLogin('You have been signed out.');
+    document.getElementById('spPassword').value = '';
+  }
+
+  spLoginForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    spLoginButton.disabled = true;
+    spLoginButton.textContent = 'Signing inâ€¦';
+    spLoginError.textContent = '';
+    try {
+      const data = await api('/student/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          studentNumber: document.getElementById('spStudentNumber').value.trim(),
+          password: document.getElementById('spPassword').value,
+        }),
+      });
+      tokenStore.setItem(TOKEN_KEY, data.token);
+      // Hand the session to Chipo so it can read this student's portal records.
+      window.chipo && window.chipo.setSession(data.token, data.student);
+      await loadPortal();
+    } catch (error) {
+      spLoginError.textContent = error.message || 'Could not sign in.';
+    } finally {
+      spLoginButton.disabled = false;
+      spLoginButton.textContent = 'Sign in to the student portal';
+    }
+  });
+
+  document.getElementById('spShowSignup').addEventListener('click', () => toggleAuthForm(true));
+  document.getElementById('spShowLogin').addEventListener('click', () => toggleAuthForm(false));
+
+  spSignupForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    spSignupError.textContent = '';
+    const password = document.getElementById('spSignupPassword').value;
+    if (password.length < 8) {
+      spSignupError.textContent = 'Choose a password with at least 8 characters.';
+      return;
+    }
+    if (password !== document.getElementById('spSignupConfirm').value) {
+      spSignupError.textContent = 'The two passwords do not match.';
+      return;
+    }
+
+    spSignupButton.disabled = true;
+    spSignupButton.textContent = 'Creating your account.';
+    try {
+      const data = await api('/student/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          fullName: document.getElementById('spSignupName').value.trim(),
+          studentNumber: document.getElementById('spSignupNumber').value.trim(),
+          programme: document.getElementById('spSignupProgramme').value.trim() || null,
+          yearOfStudy: document.getElementById('spSignupYear').value,
+          email: document.getElementById('spSignupEmail').value.trim() || null,
+          phone: document.getElementById('spSignupPhone').value.trim() || null,
+          password,
+        }),
+      });
+      tokenStore.setItem(TOKEN_KEY, data.token);
+      window.chipo && window.chipo.setSession(data.token, data.student);
+      await loadPortal();
+    } catch (error) {
+      spSignupError.textContent = error.message || 'Could not create your account.';
+    } finally {
+      spSignupButton.disabled = false;
+      spSignupButton.textContent = 'Create my account';
+    }
+  });
+
+  document.getElementById('spLogoutButton').addEventListener('click', logout);
+  document.getElementById('spAskButton').addEventListener('click', () => {
+    window.chipo.open();
+  });
+
+  // Restore (or ask for) the session straight away - the script sits at the end
+  // of the body, so every element it touches already exists.
+  function startPortal() {
+    if (token()) {
+      showBoot();
+      loadPortal();
+    } else {
+      showLogin();
+    }
+  }
+  startPortal();
+</script>
+</body>
+</html>
+
+
+
