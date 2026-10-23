@@ -41,11 +41,11 @@
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
       </button>
       <div class="login-menu-wrap">
-        <button class="login-menu-button" id="loginMenuButton" type="button" aria-expanded="false" aria-controls="loginMenu">Log in <span aria-hidden="true">&#8964;</span></button>
+        <button class="login-menu-button" id="loginMenuButton" type="button" aria-expanded="false" aria-controls="loginMenu">Log in</button>
         <div class="login-menu" id="loginMenu">
           <button type="button" id="openStudentPortal">Student portal login</button>
           <button type="button" id="openStaffLogin">Staff login</button>
-          <button type="button" id="openStudentProfile">Student profile &middot; demo</button>
+          <button type="button" id="openStudentProfile" style="display:none;">Student profile &middot; demo</button>
         </div>
       </div>
     </div>
@@ -61,7 +61,7 @@
         <p>Find your programme, discover campus life and get the support you need to move forward. Chipo, your student assistant, is here whenever you need a hand.</p>
         <div class="hero-actions">
           <a class="action-primary" href="#study">Explore programmes <span aria-hidden="true">&nbsp;&#8594;</span></a>
-          <a class="action-secondary" href="#student">Visit student hub</a>
+          <a class="action-secondary" href="/portal">Student portal</a>
         </div>
       </div>
     </section>
@@ -69,7 +69,7 @@
     <nav class="quick-links" aria-label="Popular destinations" data-stagger="80">
       <a class="quick-link reveal" href="#study" data-tilt data-float><span><strong>Find your programme</strong><span>Explore areas of study</span></span><b aria-hidden="true">&#8212;</b></a>
       <a class="quick-link reveal" href="#campus" data-tilt data-float><span><strong>Campus life</strong><span>See what student life offers</span></span><b aria-hidden="true">&#8212;</b></a>
-      <a class="quick-link reveal" href="#student" data-tilt data-float><span><strong>Student hub</strong><span>Open a sample student profile</span></span><b aria-hidden="true">&#8212;</b></a>
+      <a class="quick-link reveal" href="/portal" data-tilt data-float><span><strong>Student portal</strong><span>Sign in to your student portal</span></span><b aria-hidden="true">&#8212;</b></a>
       <a class="quick-link reveal" href="#support" data-tilt data-float><span><strong>Get support</strong><span>Track a staff support ticket</span></span><b aria-hidden="true">&#8212;</b></a>
     </nav>
 
@@ -88,7 +88,7 @@
     <section class="portal-section student-section" id="campus">
       <div class="section-heading">
         <div class="reveal"><div class="eyebrow">Beyond the lecture hall</div><h2>A campus shaped by ambition and community.</h2></div>
-        <p class="reveal">University is a place to learn with others, find your voice and turn ideas into action. Start with the student hub or ask Chipo where to go next.</p>
+        <p class="reveal">University is a place to learn with others, find your voice and turn ideas into action. Sign in to the student portal or ask Chipo where to go next.</p>
       </div>
       <div class="study-grid" data-stagger="110">
         <article class="study-item reveal" data-tilt data-float><small>Connect</small><h3>Find your people</h3><p>Meet fellow students and discover the communities that make campus feel like yours.</p></article>
@@ -99,26 +99,13 @@
 
     <section class="portal-section" id="student">
       <div class="section-heading">
-        <div class="reveal"><div class="eyebrow">Student hub &middot; sample account</div><h2>A student view, ready to explore.</h2></div>
-        <p class="reveal">This is a demo profile for preview only. It is not a real student account and does not require a sign-in.</p>
+        <div class="reveal"><div class="eyebrow">Student portal</div><h2>Access your student services.</h2></div>
+        <p class="reveal">Sign in to the University of Lusaka student portal to view your profile, fees, timetable and get tailored support from Chipo.</p>
       </div>
-      <article class="student-profile reveal" data-tilt>
-        <div class="profile-identity">
-          <div class="profile-avatar" aria-hidden="true">TP</div>
-          <h3>Thandiwe Phiri</h3>
-          <p>Undergraduate student<br>University of Lusaka</p>
-        </div>
-        <div class="profile-details">
-          <span class="demo-label">Demo student profile</span>
-          <div class="profile-facts">
-            <div><span>Student number</span><strong>UL-DEMO-2026</strong></div>
-            <div><span>Programme</span><strong>BSc Computer Science</strong></div>
-            <div><span>Year of study</span><strong>Year 2</strong></div>
-            <div><span>Current status</span><strong>Enrolled &middot; sample data</strong></div>
-          </div>
-          <p class="profile-note">This profile contains fictional sample information. Use Chipo for general university questions; do not enter private student or account information in the demo.</p>
-        </div>
-      </article>
+      <div class="reveal" style="display:flex;gap:12px;flex-wrap:wrap;">
+        <a class="action-primary" href="/portal">Sign in to student portal <span aria-hidden="true">&nbsp;&#8594;</span></a>
+        <a class="action-secondary" href="/portal">Create account</a>
+      </div>
     </section>
 
     <section class="portal-section support-section student-section" id="support">
@@ -133,30 +120,43 @@
   <footer class="site-footer"><span>University of Lusaka &middot; Passion for quality education</span><a href="#home">Back to top &#8593;</a></footer>
 
   <dialog class="staff-login-dialog" id="staffLoginDialog">
-    <form class="staff-login" id="portalLoginForm">
-      <div class="dialog-head"><div><div class="eyebrow">Staff access</div><h2>Sign in to tickets</h2><p>Access your department&rsquo;s support queue.</p></div><button class="dialog-close" id="closeStaffLogin" type="button" aria-label="Close staff login">&times;</button></div>
+    <div class="site-backdrop" aria-hidden="true">
+      <span class="blob blob-1"></span>
+      <span class="blob blob-2"></span>
+      <span class="blob blob-3"></span>
+      <span class="shape shape-1"></span>
+      <span class="shape shape-2"></span>
+    </div>
+    <div class="staff-login-card">
+      <button class="dialog-close" id="closeStaffLogin" type="button" aria-label="Close staff login"></button>
+      <div class="sp-brand"><span class="sp-brand-mark"><img src="/images/logo.jpeg" alt=""></span><span>University of Lusaka<small style="display:block;color:var(--text-muted);font-size:.68rem;font-weight:500;">Staff Portal</small></span></div>
 
-      <div id="portalLoginFields">
-        <label for="portalUsername">Username</label>
-        <input id="portalUsername" name="username" autocomplete="username" required>
-        <label for="portalPassword">Password</label>
-        <input id="portalPassword" name="password" type="password" autocomplete="current-password" required>
-      </div>
+      <form class="sp-auth-form" id="portalLoginForm">
+        <h1>Staff sign in</h1>
+        <p>Access your department&rsquo;s support queue to manage tickets and respond to escalated questions.</p>
 
-      <div id="portalSignupFields" style="display:none;">
-        <label for="portalSignupUsername">New username</label>
-        <input id="portalSignupUsername" name="signupUsername" autocomplete="username">
-        <label for="portalSignupPassword">Create password</label>
-        <input id="portalSignupPassword" name="signupPassword" type="password" autocomplete="new-password">
-        <label for="portalSignupDepartment">Department</label>
-        <select id="portalSignupDepartment" name="signupDepartment" style="width:100%; margin-bottom: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(10,68,41,0.2); background: var(--bg); color: var(--text); font: inherit;"></select>
-      </div>
+        <div id="portalLoginFields">
+          <label for="portalUsername">Username</label>
+          <input id="portalUsername" name="username" autocomplete="username" required placeholder="Enter your username">
+          <label for="portalPassword">Password</label>
+          <input id="portalPassword" name="password" type="password" autocomplete="current-password" required placeholder="Enter your password">
+        </div>
 
-      <button type="button" id="togglePortalSignup" class="secondary-btn" style="width:100%; margin: 0 0 12px; border: 1px solid rgba(10,68,41,0.2); background: transparent; color: var(--text-soft); border-radius: 999px; padding: 12px 14px; font-weight: 650; cursor: pointer;">Create account</button>
-      <button id="portalLoginButton" type="submit">Sign in to staff tickets</button>
-      <button id="portalSignupButton" type="button" style="display:none; width:100%; margin-top: 12px;">Create staff account</button>
-      <div class="portal-error" id="portalLoginError" role="alert"></div>
-    </form>
+        <div id="portalSignupFields" style="display:none;">
+          <label for="portalSignupUsername">New username</label>
+          <input id="portalSignupUsername" name="signupUsername" autocomplete="username" placeholder="Choose a username">
+          <label for="portalSignupPassword">Create password</label>
+          <input id="portalSignupPassword" name="signupPassword" type="password" autocomplete="new-password" placeholder="Create a password">
+          <label for="portalSignupDepartment">Department</label>
+          <select id="portalSignupDepartment" name="signupDepartment"></select>
+        </div>
+
+        <button id="portalLoginButton" type="submit">Sign in to staff portal</button>
+        <button id="portalSignupButton" type="button" style="display:none;">Create staff account</button>
+        <button type="button" id="togglePortalSignup" class="sp-auth-link" style="margin-top:16px;display:inline-flex;">Create account</button>
+        <div class="sp-login-error" id="portalLoginError" role="alert"></div>
+      </form>
+    </div>
   </dialog>
 </div>
 
