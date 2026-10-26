@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 
 const ask = require('./ask.js');
 const tickets = require('./tickets.js');
@@ -242,20 +243,21 @@ async function officeContactFor(question, departmentId = null, preferStudentAffa
 }
 
 async function chatResponse(req, student) {
-  const { question, history, sessionId, attachmentIds } = req.body;
+  const { question, sessionId: providedSessionId, attachmentIds } = req.body;
 
   if (!question || !question.trim()) {
     return { status: 400, body: { error: 'Question is required.' } };
   }
+  if (providedSessionId !== undefined &&
+      (typeof providedSessionId !== 'string' || !/^[a-zA-Z0-9-]{16,64}$/.test(providedSessionId))) {
+    return { status: 400, body: { error: 'A valid chat session ID is required.' } };
+  }
+  const sessionId = providedSessionId || crypto.randomUUID();
 
-  // Validate history so a malformed client request can't break the prompt builder
-  const safeHistory = Array.isArray(history)
-    ? history
-        .filter(h => h && typeof h.question === 'string' && typeof h.answer === 'string')
-        .slice(-3)
-    : [];
+  const conversation = await chatlog.loadConversationHistory(sessionId, ask.summarizeConversation);
+  const safeHistory = conversation.turns;
 
-  console.log(`\nReceived question: "${question}" (with ${safeHistory.length} prior turns)`);
+  console.log(`\nReceived question: "${question}" (session ${sessionId}, ${conversation.messages.length} recent messages)`);
 
   const access = student ? 'student' : 'public';
   console.log(`Portal access for this request: ${access}${student ? ` (${student.studentNumber})` : ''}`);
@@ -274,7 +276,7 @@ async function chatResponse(req, student) {
         departmentId: null,
         access,
       }
-    : await ask.askQuestion(question, safeHistory, { student, attachments });
+    : await ask.askQuestion(question, conversation, { student, attachments });
   // A wellbeing crisis always reaches Student Affairs, even when the question
   // mentions exams or fees.
   const wellbeing = Boolean(student) && portalAccess.isWellbeingConcern(question);
@@ -350,24 +352,21 @@ async function chatResponse(req, student) {
     answer = answer ? `${answer}\n\n${note}` : note;
   }
 
-  // Log after responding — a logging hiccup shouldn't delay or break the
-  // student's answer. Best-effort; failures are just logged server-side.
-  chatlog
-    .logMessage({
-      sessionId,
-      question,
-      answer,
-      confidence,
-      needsHuman,
-      source,
-      studentId: student ? student.id : null,
-      studentNumber: student ? student.studentNumber : null,
-    })
-    .catch((err) => console.error('Could not log chat message:', err.message));
+  await chatlog.logMessage({
+    sessionId,
+    question,
+    answer,
+    confidence,
+    needsHuman,
+    source,
+    studentId: student ? student.id : null,
+    studentNumber: student ? student.studentNumber : null,
+  });
 
   return {
     status: 200,
     body: {
+      sessionId,
       answer,
       confidence,
       needsHuman,
@@ -474,6 +473,25 @@ app.get('/tickets/:id', handle(async (req, res) => {
 }));
 
 // ==================== Student portal ====================
+
+app.post('/login', handle(async (req, res) => {
+  const { username, password } = req.body || {};
+  const [student, staff] = await Promise.all([
+    studentAuth.verifyLogin(username, password),
+    staffAuth.verifyLogin(username, password),
+  ]);
+
+  if (student && staff) {
+    return res.status(409).json({ error: 'These credentials match more than one account. Please contact support.' });
+  }
+  if (student) {
+    return res.json({ token: studentAuth.issueToken(student), role: 'student', student });
+  }
+  if (staff) {
+    return res.json({ token: staffAuth.issueToken(staff), role: 'staff', staff });
+  }
+  return res.status(401).json({ error: 'Incorrect username or password.' });
+}));
 
 app.post('/student/login', handle(async (req, res) => {
   const { studentNumber, password } = req.body;

@@ -52,6 +52,30 @@ test('vague follow-ups can be recognised without accepting unrelated subjects', 
   assert.equal(portalAccess.scopeCheck('How do I pay?').inScope, true);
 });
 
+test('short replies to a programme clarification stay in the conversation context', () => {
+  const history = [{
+    question: 'What programs are offered?',
+    answer: 'What field are you interested in? Tell me which area you are considering.',
+  }];
+
+  assert.equal(portalAccess.isContextualFollowUp('IT', history), true);
+  assert.equal(portalAccess.isContextualFollowUp('Information technology', history), true);
+  assert.equal(portalAccess.isContextualFollowUp('What is the capital of France?', history), false);
+  assert.equal(portalAccess.isContextualFollowUp('IT', []), false);
+  assert.equal(portalAccess.scopeCheck('IT').inScope, false);
+});
+
+test('location questions about places just discussed stay in conversation context', () => {
+  const history = [{
+    question: 'How many campuses does UNILUS have?',
+    answer: 'UNILUS has three campuses in Lusaka: Pioneer Campus, Law Campus, and Silverest Campus.',
+  }];
+
+  assert.equal(portalAccess.isContextualFollowUp('Where are they located?', history), true);
+  assert.equal(portalAccess.isContextualFollowUp('Where is the capital of France?', history), false);
+  assert.equal(portalAccess.isContextualFollowUp('Where are they located?', []), false);
+});
+
 test('a wellbeing message opens an urgent ticket to Student Affairs, not another office', async () => {
   const originalAsk = ask.askQuestion;
   const originalCreateTicket = require('../tickets.js').createTicket;

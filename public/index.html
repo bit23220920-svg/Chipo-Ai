@@ -2,7 +2,7 @@
 <html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>UNILUS Student Assistant</title>
 <link rel="icon" type="image/jpeg" href="/images/logo.jpeg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -40,14 +40,7 @@
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
       </button>
-      <div class="login-menu-wrap">
-        <button class="login-menu-button" id="loginMenuButton" type="button" aria-expanded="false" aria-controls="loginMenu">Log in</button>
-        <div class="login-menu" id="loginMenu">
-          <button type="button" id="openStudentPortal">Student portal login</button>
-          <button type="button" id="openStaffLogin">Staff login</button>
-          <button type="button" id="openStudentProfile" style="display:none;">Student profile &middot; demo</button>
-        </div>
-      </div>
+      <button class="login-menu-button" id="loginMenuButton" type="button">Login</button>
     </div>
   </header>
 
@@ -128,32 +121,21 @@
       <span class="shape shape-2"></span>
     </div>
     <div class="staff-login-card">
-      <button class="dialog-close" id="closeStaffLogin" type="button" aria-label="Close staff login"></button>
-      <div class="sp-brand"><span class="sp-brand-mark"><img src="/images/logo.jpeg" alt=""></span><span>University of Lusaka<small style="display:block;color:var(--text-muted);font-size:.68rem;font-weight:500;">Staff Portal</small></span></div>
+      <button class="dialog-close" id="closeStaffLogin" type="button" aria-label="Close login"></button>
+      <div class="sp-brand"><span class="sp-brand-mark"><img src="/images/logo.jpeg" alt=""></span><span>University of Lusaka</span></div>
 
       <form class="sp-auth-form" id="portalLoginForm">
-        <h1>Staff sign in</h1>
-        <p>Access your department&rsquo;s support queue to manage tickets and respond to escalated questions.</p>
+        <h1>Login</h1>
+        <p>Sign in with your username or student number and password.</p>
 
         <div id="portalLoginFields">
-          <label for="portalUsername">Username</label>
-          <input id="portalUsername" name="username" autocomplete="username" required placeholder="Enter your username">
+          <label for="portalUsername">Username or student number</label>
+          <input id="portalUsername" name="username" autocomplete="username" required placeholder="Enter your username or student number">
           <label for="portalPassword">Password</label>
           <input id="portalPassword" name="password" type="password" autocomplete="current-password" required placeholder="Enter your password">
         </div>
 
-        <div id="portalSignupFields" style="display:none;">
-          <label for="portalSignupUsername">New username</label>
-          <input id="portalSignupUsername" name="signupUsername" autocomplete="username" placeholder="Choose a username">
-          <label for="portalSignupPassword">Create password</label>
-          <input id="portalSignupPassword" name="signupPassword" type="password" autocomplete="new-password" placeholder="Create a password">
-          <label for="portalSignupDepartment">Department</label>
-          <select id="portalSignupDepartment" name="signupDepartment"></select>
-        </div>
-
-        <button id="portalLoginButton" type="submit">Sign in to staff portal</button>
-        <button id="portalSignupButton" type="button" style="display:none;">Create staff account</button>
-        <button type="button" id="togglePortalSignup" class="sp-auth-link" style="margin-top:16px;display:inline-flex;">Create account</button>
+        <button id="portalLoginButton" type="submit">Login</button>
         <div class="sp-login-error" id="portalLoginError" role="alert"></div>
       </form>
     </div>
@@ -171,85 +153,13 @@
   const portalLoginForm = document.getElementById('portalLoginForm');
   const portalLoginButton = document.getElementById('portalLoginButton');
   const portalLoginError = document.getElementById('portalLoginError');
-  const portalSignupButton = document.getElementById('portalSignupButton');
-  const portalSignupFields = document.getElementById('portalSignupFields');
-  const portalLoginFields = document.getElementById('portalLoginFields');
-  const togglePortalSignup = document.getElementById('togglePortalSignup');
-  const portalSignupDepartment = document.getElementById('portalSignupDepartment');
-
-  async function loadPortalDepartments() {
-    try {
-      const response = await fetch('/admin/departments/public');
-      const data = await response.json();
-      const departments = data.departments || [];
-      portalSignupDepartment.innerHTML = '<option value="">Choose a department</option>' + departments.map((dept) => `
-        <option value="${dept.id}">${dept.name}</option>
-      `).join('');
-      if (!departments.length) {
-        portalSignupDepartment.innerHTML = '<option value="">No departments available yet</option>';
-      }
-    } catch (err) {
-      portalSignupDepartment.innerHTML = '<option value="">Departments unavailable</option>';
-    }
-  }
-
-  function setPortalSignupMode(enabled) {
-    portalSignupFields.style.display = enabled ? 'block' : 'none';
-    portalLoginFields.style.display = enabled ? 'none' : 'block';
-    portalLoginButton.style.display = enabled ? 'none' : 'block';
-    portalSignupButton.style.display = enabled ? 'block' : 'none';
-    togglePortalSignup.textContent = enabled ? 'Back to sign in' : 'Create account';
-    portalLoginError.textContent = '';
-    if (enabled) loadPortalDepartments();
-  }
-
-  togglePortalSignup.addEventListener('click', () => {
-    const enabled = portalSignupFields.style.display === 'none';
-    setPortalSignupMode(enabled);
-  });
-
-  portalSignupButton.addEventListener('click', async () => {
-    const username = document.getElementById('portalSignupUsername').value.trim();
-    const password = document.getElementById('portalSignupPassword').value;
-    const departmentId = document.getElementById('portalSignupDepartment').value;
-
-    if (!username || !password || !departmentId) {
-      portalLoginError.textContent = 'Choose a username, password, and department.';
-      return;
-    }
-
-    portalSignupButton.disabled = true;
-    portalSignupButton.textContent = 'Creating...';
-    portalLoginError.textContent = '';
-
-    try {
-      const response = await fetch('/admin/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, departmentId }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Account creation failed.');
-
-      document.getElementById('portalUsername').value = username;
-      document.getElementById('portalPassword').value = password;
-      setPortalSignupMode(false);
-      portalLoginError.textContent = 'Account created. You can sign in now.';
-    } catch (error) {
-      portalLoginError.textContent = error.message || 'Could not create account.';
-    } finally {
-      portalSignupButton.disabled = false;
-      portalSignupButton.textContent = 'Create staff account';
-    }
-  });
-
   portalLoginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     portalLoginButton.disabled = true;
     portalLoginButton.textContent = 'Signing in...';
     portalLoginError.textContent = '';
     try {
-      const response = await fetch('/admin/login', {
+      const response = await fetch('/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -259,45 +169,29 @@
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Sign in failed.');
-      localStorage.setItem('chipo_staff_token', data.token);
-      window.location.assign('/admin.html');
+      if (data.role === 'student') {
+        sessionStorage.setItem('chipo_student_token', data.token);
+        window.location.assign('/portal');
+      } else if (data.role === 'staff') {
+        localStorage.setItem('chipo_staff_token', data.token);
+        window.location.assign('/admin.html');
+      } else {
+        throw new Error('Could not determine the correct portal for this account.');
+      }
     } catch (error) {
       portalLoginError.textContent = error.message || 'Could not sign in.';
     } finally {
       portalLoginButton.disabled = false;
-      portalLoginButton.textContent = 'Sign in to staff tickets';
+      portalLoginButton.textContent = 'Login';
     }
   });
 
   const loginMenuButton = document.getElementById('loginMenuButton');
-  const loginMenu = document.getElementById('loginMenu');
   const staffLoginDialog = document.getElementById('staffLoginDialog');
   loginMenuButton.addEventListener('click', () => {
-    const isOpen = loginMenu.classList.toggle('open');
-    loginMenuButton.setAttribute('aria-expanded', String(isOpen));
-  });
-  document.getElementById('openStaffLogin').addEventListener('click', () => {
-    loginMenu.classList.remove('open');
-    loginMenuButton.setAttribute('aria-expanded', 'false');
     staffLoginDialog.showModal();
   });
-  document.getElementById('openStudentPortal').addEventListener('click', () => {
-    loginMenu.classList.remove('open');
-    loginMenuButton.setAttribute('aria-expanded', 'false');
-    window.location.assign('/portal');
-  });
   document.getElementById('closeStaffLogin').addEventListener('click', () => staffLoginDialog.close());
-  document.getElementById('openStudentProfile').addEventListener('click', () => {
-    loginMenu.classList.remove('open');
-    loginMenuButton.setAttribute('aria-expanded', 'false');
-    document.getElementById('student').scrollIntoView({ behavior: 'smooth' });
-  });
-  document.addEventListener('click', (event) => {
-    if (!event.target.closest('.login-menu-wrap')) {
-      loginMenu.classList.remove('open');
-      loginMenuButton.setAttribute('aria-expanded', 'false');
-    }
-  });
 
   document.getElementById('ticketLookupForm').addEventListener('submit', async (event) => {
     event.preventDefault();

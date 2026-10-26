@@ -90,6 +90,8 @@ Chipo can read a student's portal records only **inside the student portal, whil
 
 The chat widget shows the current state as a badge in its header ("Portal access: signed in" / "Portal access: locked"). The portal page declares itself with `window.chipo.setScope('portal')`, which is what makes the widget call the portal endpoint; everywhere else the scope is `site` and the session is never sent. The access rules live in `portalAccess.js`, the records are read through `studentPortal.getContextPayload()`, and the session is resolved in `server.js`.
 
+Each chat conversation also has a random session ID stored for the browser tab. The server saves user and assistant messages for that ID, keeps the latest 12 messages verbatim, and summarizes older messages for follow-up context. After deploying this change, run `node migrate.js` once to create the conversation-history tables.
+
 ### Chipo understands typos
 
 Students type fast, often on a phone, and a misspelt question has to be answered rather than turned away. The rules in `portalAccess.js` match a word within a letter or two of the real one, so "admisn reqirements" is still a question about admissions, "defrment" is still a deferment, and "whats my fe balnce" is still a question about the student's own balance.

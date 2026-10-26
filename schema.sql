@@ -68,6 +68,13 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   INDEX idx_chat_messages_student (student_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS chat_conversations (
+  session_id VARCHAR(64) NOT NULL PRIMARY KEY,
+  summary TEXT NOT NULL,
+  summarized_through_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Student accounts for the student portal (/portal). Passwords are bcrypt
 -- hashes; accounts are provisioned with the create-student.js CLI script.
 CREATE TABLE IF NOT EXISTS students (

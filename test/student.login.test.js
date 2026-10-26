@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const studentAuth = require('../studentAuth.js');
+const staffAuth = require('../staffAuth.js');
 const studentPortal = require('../studentPortal.js');
 const { app } = require('../server.js');
 
@@ -77,6 +78,91 @@ test('POST /student/login rejects a wrong password', async () => {
   }
 });
 
+test('POST /login routes valid student credentials to the student portal', async () => {
+  const originalStudentVerify = studentAuth.verifyLogin;
+  const originalStudentIssue = studentAuth.issueToken;
+  const originalStaffVerify = staffAuth.verifyLogin;
+
+  studentAuth.verifyLogin = async () => demoStudent;
+  studentAuth.issueToken = () => 'test-student-token';
+  staffAuth.verifyLogin = async () => null;
+
+  try {
+    await withServer(async (base) => {
+      const response = await fetch(`${base}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'BIT23220920', password: 'student1234' }),
+      });
+
+      const body = await response.json();
+      assert.equal(response.status, 200);
+      assert.equal(body.role, 'student');
+      assert.equal(body.token, 'test-student-token');
+      assert.equal(body.student.studentNumber, 'BIT23220920');
+    });
+  } finally {
+    studentAuth.verifyLogin = originalStudentVerify;
+    studentAuth.issueToken = originalStudentIssue;
+    staffAuth.verifyLogin = originalStaffVerify;
+  }
+});
+
+test('POST /login routes valid staff credentials to the staff portal', async () => {
+  const originalStudentVerify = studentAuth.verifyLogin;
+  const originalStaffVerify = staffAuth.verifyLogin;
+  const originalStaffIssue = staffAuth.issueToken;
+  const demoStaff = { id: 'staff-1', username: 'fees.staff', isAdmin: false };
+
+  studentAuth.verifyLogin = async () => null;
+  staffAuth.verifyLogin = async () => demoStaff;
+  staffAuth.issueToken = () => 'test-staff-token';
+
+  try {
+    await withServer(async (base) => {
+      const response = await fetch(`${base}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'fees.staff', password: 'staff1234' }),
+      });
+
+      const body = await response.json();
+      assert.equal(response.status, 200);
+      assert.equal(body.role, 'staff');
+      assert.equal(body.token, 'test-staff-token');
+      assert.equal(body.staff.username, 'fees.staff');
+    });
+  } finally {
+    studentAuth.verifyLogin = originalStudentVerify;
+    staffAuth.verifyLogin = originalStaffVerify;
+    staffAuth.issueToken = originalStaffIssue;
+  }
+});
+
+test('POST /login rejects credentials shared by student and staff accounts', async () => {
+  const originalStudentVerify = studentAuth.verifyLogin;
+  const originalStaffVerify = staffAuth.verifyLogin;
+
+  studentAuth.verifyLogin = async () => demoStudent;
+  staffAuth.verifyLogin = async () => ({ id: 'staff-1', username: 'BIT23220920' });
+
+  try {
+    await withServer(async (base) => {
+      const response = await fetch(`${base}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'BIT23220920', password: 'same-password' }),
+      });
+
+      assert.equal(response.status, 409);
+      assert.match((await response.json()).error, /match more than one account/);
+    });
+  } finally {
+    studentAuth.verifyLogin = originalStudentVerify;
+    staffAuth.verifyLogin = originalStaffVerify;
+  }
+});
+
 test('GET /student/portal needs a student session', async () => {
   await withServer(async (base) => {
     const response = await fetch(`${base}/student/portal`);
@@ -93,6 +179,17 @@ test('the portal page ships the sign-in form and the shared chatbot', async () =
     assert.match(html, /id="spLoginForm"/);
     assert.match(html, /id="spStudentNumber"/);
     assert.match(html, /src="\/chipobot\.js"/);
+  });
+});
+
+test('the public site offers one login form for both portal types', async () => {
+  await withServer(async (base) => {
+    const html = await (await fetch(base)).text();
+
+    assert.match(html, /<h1>Login<\/h1>/);
+    assert.match(html, /Username or student number/);
+    assert.match(html, /fetch\('\/login'/);
+    assert.doesNotMatch(html, /Student portal login|Staff login/);
   });
 });
 

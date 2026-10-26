@@ -278,6 +278,55 @@
     border-radius: 999px;
   }
 
+  .sidebar-ticket-filters {
+    margin: 4px 0 16px;
+    padding: 14px 10px 12px;
+    border-top: 1px solid rgba(16, 185, 129, 0.25);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.25);
+  }
+  .sidebar-ticket-filters h2 {
+    margin: 0 0 10px;
+    color: rgba(226, 232, 240, 0.62);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .sidebar-ticket-filters .filter-row {
+    display: grid;
+    gap: 6px;
+    padding: 0;
+  }
+  .sidebar-ticket-filters .filter-chip,
+  .sidebar-ticket-filters .btn-cancel {
+    width: 100%;
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: rgba(226, 232, 240, 0.8);
+    font: inherit;
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .sidebar-ticket-filters .filter-chip {
+    border: 1px solid transparent;
+    background: transparent;
+  }
+  .sidebar-ticket-filters .filter-chip:hover,
+  .sidebar-ticket-filters .btn-cancel:hover {
+    background: rgba(16, 185, 129, 0.16);
+    color: #fff;
+  }
+  .sidebar-ticket-filters .filter-chip.active {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.9), rgba(34, 197, 94, 0.7));
+    color: #fff;
+  }
+  .sidebar-ticket-filters .btn-cancel {
+    border: 1px solid rgba(226, 232, 240, 0.22);
+    background: transparent;
+  }
+
   .sidebar-footer {
     margin-top: auto;
     padding-top: 16px;
@@ -380,29 +429,29 @@
   /* Table */
   .table-wrap {
     width: 100%;
-    overflow-x: hidden;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
   }
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; table-layout: fixed; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; table-layout: fixed; }
   th {
     text-align: left;
-    padding: 14px 18px;
+    padding: 12px 10px;
     color: var(--text-muted);
     font-weight: 650;
-    font-size: 0.72rem;
+    font-size: 0.66rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
     background: rgba(15, 19, 23, 0.8);
   }
-  td { padding: 14px 18px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text); }
+  td { padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text); overflow-wrap: anywhere; }
   tr:last-child td { border-bottom: none; }
   tbody tr { transition: background 0.18s ease; }
   tbody tr:hover { background: rgba(16, 185, 129, 0.08); }
   .cell-muted { color: var(--text-muted); font-size: 0.78rem; }
   .cell-q { white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
-  .cell-ref { white-space: nowrap; font-weight: 650; color: var(--neon); }
-  .cell-contact { display: flex; flex-direction: column; gap: 3px; white-space: normal; }
+  .cell-ref { white-space: normal; overflow-wrap: anywhere; font-weight: 650; color: var(--neon); }
   .cell-contact-name { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
   .cell-contact-email,
   .cell-contact-phone { color: var(--text-muted); font-size: 0.78rem; word-break: break-word; overflow-wrap: anywhere; }
@@ -410,8 +459,9 @@
   .cell-contact-phone a { color: var(--text-muted); text-decoration: none; }
   .cell-contact-email a:hover,
   .cell-contact-phone a:hover { color: var(--neon); }
+  .cell-contact-content { display: flex; flex-direction: column; gap: 3px; }
 
-  .badge { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.02em; white-space: nowrap; }
+  .badge { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 650; letter-spacing: 0.02em; white-space: normal; }
   .badge-open { background: rgba(96, 165, 250, 0.18); color: #93c5fd; }
   .badge-in_progress { background: rgba(250, 204, 21, 0.18); color: #fbbf24; }
   .badge-resolved { background: rgba(16, 185, 129, 0.22); color: #34d399; }
@@ -422,10 +472,12 @@
   .badge-rag { background: rgba(148, 163, 184, 0.22); color: #cbd5f5; }
 
   select.status-select {
+    width: 100%;
+    max-width: 120px;
     border: 1px solid var(--border-strong);
     border-radius: 999px;
-    padding: 7px 14px;
-    font-size: 0.8rem;
+    padding: 7px 8px;
+    font-size: 0.72rem;
     font-family: inherit;
     background: rgba(15, 19, 23, 0.9);
     color: var(--text);
@@ -504,11 +556,10 @@
 
 
   @media (max-width: 1100px) {
-    .table-wrap { overflow-x: auto; }
-    table { min-width: 980px; table-layout: auto; }
+    table { min-width: 1080px; }
   }
   @media (max-width: 920px) {
-    .sidebar { width: 76px; padding: 18px 8px; }
+    .sidebar { width: 210px; padding: 18px 12px; }
     .brand-text, .nav-item span.label, .sidebar-footer .staff-name { display: none; }
     .nav-item { justify-content: center; padding: 12px 0; }
     .content { padding: 20px 16px 60px; }
@@ -582,6 +633,16 @@
         <span class="label">Tickets</span>
         <span class="nav-badge" id="openTicketBadge" style="display:none;">0</span>
       </div>
+      <section class="sidebar-ticket-filters" aria-labelledby="ticketFiltersHeading">
+        <h2 id="ticketFiltersHeading">Ticket status</h2>
+        <div class="filter-row" id="ticketFilters">
+          <button class="filter-chip active" data-status="">Active</button>
+          <button class="filter-chip" data-status="open">Open</button>
+          <button class="filter-chip" data-status="in_progress">In progress</button>
+          <button class="filter-chip" data-status="resolved">Resolved</button>
+          <button class="btn-cancel" id="refreshTicketsBtn" type="button">Refresh</button>
+        </div>
+      </section>
       <div class="nav-item" data-tab="faqs"><span class="label">FAQs</span></div>
       <div class="nav-item" data-tab="departments"><span class="label">Departments</span></div>
       <div class="nav-item" data-tab="staff"><span class="label">Staff accounts</span></div>
@@ -606,13 +667,6 @@
         <!-- ---------- Tickets tab ---------- -->
         <div class="tab-panel" id="tab-tickets">
           <div class="panel">
-            <div class="filter-row" id="ticketFilters">
-              <button class="filter-chip active" data-status="">Active</button>
-              <button class="filter-chip" data-status="open">Open</button>
-              <button class="filter-chip" data-status="in_progress">In progress</button>
-              <button class="filter-chip" data-status="resolved">Resolved</button>
-              <button class="btn-cancel" id="refreshTicketsBtn" type="button">Refresh</button>
-            </div>
             <div id="ticketsTableWrap"></div>
           </div>
         </div>
@@ -1024,17 +1078,19 @@
         return;
       }
 
-      let html = '<div class="table-wrap"><table><thead><tr>' +
-        '<th style="width: 12%;">Reference</th><th style="width: 16%;">Student contact</th><th>Question</th><th style="width: 12%;">Department</th><th style="width: 12%;">Reason</th><th style="width: 9%;">Confidence</th><th style="width: 11%;">Status</th><th style="width: 12%;">Opened</th>' +
+      let html = '<div class="table-wrap"><table><colgroup>' +
+        '<col style="width:14%"><col style="width:18%"><col style="width:20%"><col style="width:12%"><col style="width:12%"><col style="width:7%"><col style="width:9%"><col style="width:8%">' +
+        '</colgroup><thead><tr>' +
+        '<th>Reference</th><th>Student contact</th><th>Question</th><th>Department</th><th>Reason</th><th>Confidence</th><th>Status</th><th>Opened</th>' +
         '</tr></thead><tbody>';
 
       tickets.forEach((t) => {
         html += '<tr>' +
           '<td class="cell-ref">' + escapeHtml(t.id) + '</td>' +
-          '<td class="cell-contact"><span class="cell-contact-name">' + escapeHtml(t.name || 'Unknown') + '</span>' +
+          '<td><div class="cell-contact-content"><span class="cell-contact-name">' + escapeHtml(t.name || 'Unknown') + '</span>' +
             (t.email ? '<span class="cell-contact-email"><a href="mailto:' + encodeURIComponent(t.email) + '">' + escapeHtml(t.email) + '</a></span>' : '<span class="cell-contact-email">No email provided</span>') +
             (t.phone ? '<span class="cell-contact-phone"><a href="tel:' + encodeURIComponent(t.phone) + '">' + escapeHtml(t.phone) + '</a></span>' : '<span class="cell-contact-phone">No phone provided</span>') +
-          '</td>' +
+          '</div></td>' +
           '<td class="cell-q">' + escapeHtml(t.question) + '</td>' +
           '<td>' + escapeHtml(t.departmentName || 'Unassigned') + '</td>' +
           '<td><span class="badge badge-' + t.reason + '">' + (REASON_LABEL[t.reason] || t.reason) + '</span></td>' +

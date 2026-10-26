@@ -211,6 +211,98 @@ function isOutOfScope(question, options = {}) {
   return !portalAccess.isInScope(question, options);
 }
 
+function normalizeConversationHistory(history) {
+  if (Array.isArray(history)) {
+    const messages = [];
+    const turns = history.filter((turn) =>
+      turn && typeof turn.question === 'string' && typeof turn.answer === 'string'
+    );
+    for (const turn of turns) {
+      messages.push({ role: 'user', content: turn.question });
+      messages.push({ role: 'assistant', content: turn.answer });
+    }
+    return { summary: '', messages, turns };
+  }
+
+  const messages = Array.isArray(history?.messages)
+    ? history.messages.filter((message) =>
+      message && (message.role === 'user' || message.role === 'assistant') && typeof message.content === 'string'
+    )
+    : [];
+  const turns = [];
+  for (let index = 0; index < messages.length; index += 1) {
+    if (messages[index].role === 'user' && messages[index + 1]?.role === 'assistant') {
+      turns.push({ question: messages[index].content, answer: messages[index + 1].content });
+    }
+  }
+  return {
+    summary: typeof history?.summary === 'string' ? history.summary : '',
+    messages,
+    turns,
+  };
+}
+
+function isGreetingOrThanks(question) {
+  return /^\s*(?:hi|hey|hello|yo|sup|hiya|hola|molo|howdy|greetings|good\s+(?:morning|afternoon|evening|day)|thanks|thank\s+you|cheers|many\s+thanks|ta)\b(?:\s+(?:for|you|so|a lot|very much|that|again)\b.*)?[\s!.?]*$/i
+    .test(String(question || ''));
+}
+
+function formatHistoryForPrompt(history) {
+  const { summary, messages } = normalizeConversationHistory(history);
+  const summaryText = summary ? `Earlier conversation summary:\n${summary}\n\n` : '';
+  const recent = messages.slice(-12);
+  const messageText = recent
+    .map((message) => `${message.role === 'user' ? 'Student' : 'Assistant'}: ${message.content}`)
+    .join('\n');
+  return summaryText + (messageText
+    ? `Recent conversation (last ${recent.length} messages, verbatim):\n${messageText}\n\n`
+    : '');
+}
+
+function rewriteCampusFollowUp(question, history) {
+  if (!/\b(?:which|what)\s+campus\b/i.test(question) ||
+      !/\b(?:it|they|them|that|this|one)\b/i.test(question)) {
+    return null;
+  }
+
+  const { turns } = normalizeConversationHistory(history);
+  const lastTurn = turns[turns.length - 1];
+  if (!lastTurn) return null;
+
+  const entityPatterns = [
+    /\b(?:Bachelor|Master|Doctor|Diploma|Certificate)\s+(?:of|in)\s+[A-Z][A-Za-z&'-]*(?:\s+[A-Z][A-Za-z&'-]*){0,3}/,
+    /\b(?:School|Faculty|College)\s+of\s+[A-Z][A-Za-z&'-]*(?:\s+[A-Z][A-Za-z&'-]*){0,3}/,
+  ];
+  const entity = entityPatterns
+    .map((pattern) => lastTurn.answer.match(pattern)?.[0])
+    .find(Boolean);
+
+  if (entity) return `Which campus is the ${entity} located at?`;
+  return `${question}\nPrevious topic: ${lastTurn.question}\nPrevious answer: ${lastTurn.answer}`;
+}
+
+async function rewriteStandaloneQuestion(question, history) {
+  const { summary, messages } = normalizeConversationHistory(history);
+  if (!messages.length || isGreetingOrThanks(question)) return question;
+
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+  const result = await model.generateContent(
+    `Rewrite the student's latest message as one standalone search question using the conversation history only to resolve references such as "they", "it", "that one", "and the fees", or "tell me more". Do not answer it or add facts. If it is already standalone, repeat it unchanged. Return only the rewritten question.\n\n${formatHistoryForPrompt({ summary, messages })}Latest message: ${question}`
+  );
+  const rewritten = result.response.text().trim().replace(/^["'“]|["'”]$/g, '').trim();
+  return rewritten ? rewritten.slice(0, 1000) : question;
+}
+
+async function summarizeConversation(previousSummary, messages) {
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+  const result = await model.generateContent(
+    `Update this running summary of a university assistant conversation. Preserve topics, named entities, questions and answers needed to resolve later references. Do not add facts. Keep it concise.\n\nCurrent summary:\n${previousSummary || '(none)'}\n\nOlder messages:\n${messages.map((message) => `${message.role}: ${message.content}`).join('\n')}`
+  );
+  const summary = result.response.text().trim();
+  if (!summary) throw new Error('The conversation summary was empty.');
+  return summary.slice(0, 12000);
+}
+
 /**
  * Answer a question.
  *
@@ -230,20 +322,32 @@ function isOutOfScope(question, options = {}) {
  * @param {{student?: object|null, attachments?: Array<object>}} [options]
  */
 async function askQuestion(question, history = [], options = {}) {
+  const conversation = normalizeConversationHistory(history);
+  const historyTurns = conversation.turns;
   const student = options.student || null;
   const attachments = Array.isArray(options.attachments) ? options.attachments : [];
   const textAttachments = attachments.filter((a) => a.kind === 'text' && a.text);
   const imageAttachments = attachments.filter((a) => a.kind === 'image' && a.image);
+  const skipSearch = isGreetingOrThanks(question);
+  const campusFollowUp = rewriteCampusFollowUp(question, conversation);
+  const retrievalQuestion = skipSearch
+    ? question
+    : (campusFollowUp || await rewriteStandaloneQuestion(question, conversation));
 
   // Boundary first: a question that has nothing to do with the university is
   // out of bounds whoever is asking, so there is no point looking for a
   // student session. An attached file is always in scope — the user handed
   // it over on purpose. A misspelt university question is in scope as well:
   // "admisn reqirements" is still a question about admissions.
+  const contextualFollowUp = portalAccess.isContextualFollowUp(question, historyTurns);
   let scope = portalAccess.scopeCheck(question, { attachments });
-  if (!scope.inScope && history.length && portalAccess.isVagueFollowUp(question)) {
-    // "I have a problem" only means something in a conversation that is
-    // already about the university. Ask what it is about instead of refusing.
+  if (!scope.inScope && retrievalQuestion !== question) {
+    scope = portalAccess.scopeCheck(retrievalQuestion, { attachments });
+  }
+  if (!scope.inScope && historyTurns.length && (
+    portalAccess.isVagueFollowUp(question) || contextualFollowUp
+  )) {
+    // Short replies to a clarification inherit the topic being clarified.
     scope = { inScope: true, fuzzy: false };
   }
   if (!scope.inScope) {
@@ -288,29 +392,32 @@ async function askQuestion(question, history = [], options = {}) {
     };
   }
 
-  const pdfChunks = await loadContent();
+  let topChunks = [];
+  if (!skipSearch) {
+    const pdfChunks = await loadContent();
 
-  let faqChunks = [];
-  try {
-    faqChunks = await getActiveFaqChunks();
-  } catch (err) {
-    // FAQ table might be empty or the DB might be briefly unavailable —
-    // don't let that take down the whole RAG pipeline, just fall back to
-    // PDF-only retrieval for this question.
-    console.error('Could not load FAQ chunks, continuing with PDF content only:', err.message);
+    let faqChunks = [];
+    try {
+      faqChunks = await getActiveFaqChunks();
+    } catch (err) {
+      // FAQ table might be empty or the DB might be briefly unavailable —
+      // don't let that take down the whole RAG pipeline, just fall back to
+      // PDF-only retrieval for this question.
+      console.error('Could not load FAQ chunks, continuing with PDF content only:', err.message);
+    }
+
+    const chunks = [...faqChunks, ...pdfChunks];
+    const questionEmbedding = await embedText(retrievalQuestion);
+    const scored = chunks.map((chunk) => ({
+      ...chunk,
+      score: cosineSimilarity(questionEmbedding, chunk.embedding),
+    }));
+    scored.sort((a, b) => b.score - a.score);
+    topChunks = scored.slice(0, 2);
   }
-
-  const chunks = [...faqChunks, ...pdfChunks];
-
-  const questionEmbedding = await embedText(question);
-  const scored = chunks.map((chunk) => ({
-    ...chunk,
-    score: cosineSimilarity(questionEmbedding, chunk.embedding),
-  }));
-  scored.sort((a, b) => b.score - a.score);
-
-  const topChunks = scored.slice(0, 2);
-  const context = topChunks.map(c => c.text).join('\n\n---\n\n');
+  const context = topChunks.map((chunk, index) =>
+    `[S${index + 1}] Source: ${chunk.filename}\n${chunk.text}`
+  ).join('\n\n---\n\n');
   const topScore = topChunks.length ? topChunks[0].score : 0;
   const topSource = topChunks.length ? (topChunks[0].source || 'rag') : 'rag';
 
@@ -328,14 +435,9 @@ async function askQuestion(question, history = [], options = {}) {
     console.error('Could not load portal context:', err.message);
   }
 
-  const recentHistory = history.slice(-3);
-  const historyText = recentHistory.length
-    ? `Previous conversation (use this only to understand what the student is referring to, e.g. "that" or "it" — do not treat it as a source of facts):\n` +
-      recentHistory.map(h => `Student: ${h.question}\nAssistant: ${h.answer}`).join('\n\n') +
-      `\n\n`
-    : '';
+  const historyText = formatHistoryForPrompt(conversation);
 
-    const model = genAI.getGenerativeModel({
+  const model = genAI.getGenerativeModel({
     model: "gemini-3.5-flash-lite",
     // Low enough that the same question gets the same answer twice, so the
     // numbers Chipo gives stay the same numbers.
@@ -369,7 +471,9 @@ How you think:
 - Work out what the person actually needs, not only what they typed. "Fees?" usually means the fees for their level of study.
 - Answer the question that was actually asked. If it asks "how many", count the items in the information below and give the number with their names. If it asks "what" or "how", explain it straight away. Only list what you can do when someone asks what you can do.
 - Use the information given below as the truth, not what you remember from elsewhere. You were trained on other universities too, and their details are not ours.
-- Never fill a gap with a guess.
+- Use conversation history only to resolve references and follow-ups; it is not a source of facts.
+- Answer factual questions only from the retrieved information and permitted portal context below. If the answer is not there, say "I don't know" plainly and do not guess.
+- Retrieved chunks have source IDs such as [S1]. After your answer, add one final line exactly in this format: USED_SOURCES: S1, S2. Include only IDs that contain information you actually used. If no retrieved chunk was used, write USED_SOURCES: NONE.
 
 How you speak:
 - Short and clear. Most answers fit in under 150 words; use a list only when the answer really is a list.
@@ -420,6 +524,7 @@ When a question needs a person:
   - Do not open a ticket when the answer is in the information below or in the portal records, when the student can do the task on the portal themselves (give the steps and deadline), for greetings or thanks, or when you are declining a request such as doing their assignment. If the portal does not hold something such as a GPA, say plainly that you cannot see it, say where to find it or who to ask, and offer a ticket only if they want one.
   - Wellbeing: if a student says they are overwhelmed, cannot cope, feel hopeless, or mention self-harm, respond warmly and personally first. Encourage them to contact Student Affairs and counselling, and someone they trust. If there is any mention of self-harm or danger, urge them to contact emergency services or be with someone right now. A ticket goes to Student Affairs; never dismiss it and never call it "I wasn't completely sure".
   - Follow-ups: short, misspelt or vague follow-ups in an ongoing university conversation are never off-topic. If a message is vague - "I have a problem" - ask one friendly question: "I'm sorry to hear that. Is it about fees, courses, results, or something else?" Only refuse something clearly unrelated to the university.
+  - Resolve references such as "they", "it", "that one", "and the fees", and "tell me more" from the entire conversation history. Continue answering the same subject unless the student clearly changes topic.
   - Money: use exact figures from the portal and never estimate a balance. The 50% down payment rule applies to tuition fees, not to the outstanding balance: explain the rule, then say Accounts will confirm the exact amount. List payment methods, deadlines or penalties only when the information below holds them; otherwise say you are not sure and offer a ticket to Accounts.
 - Never invent a reference number, a response time, or a claim that the office has already been contacted.
 - If someone asks to be put through to a person, do it without arguing.
@@ -451,7 +556,7 @@ Examples of the right tone:
 ${portalAccess.SCOPE_RULES}
 ${accessRules}
 ${fileRules}
-${historyText}Here's what you know:
+${historyText}Here's the retrieved information. Use only these chunks for general factual answers:
 ${context}
 ${portalBlock}${attachmentBlock}${imageBlock}User's question: ${question}
 
@@ -487,6 +592,13 @@ Chipo's answer:`;
   }
 
   let answerText = result.response.text();
+  const usedSourceMatch = answerText.match(/(?:^|\n)\s*USED_SOURCES:\s*(.*?)\s*$/i);
+  const usedSourceIds = usedSourceMatch
+    ? (usedSourceMatch[1].match(/\bS\d+\b/gi) || []).map((id) => id.toUpperCase())
+    : [];
+  if (usedSourceMatch) {
+    answerText = answerText.slice(0, usedSourceMatch.index).trim();
+  }
 
   // On the public site, student numbers coming out of the model are withheld.
   // Numbers that appear in the user's own uploaded file are kept, because
@@ -528,13 +640,14 @@ Chipo's answer:`;
 
   // The documents behind a retrieved answer, so the interface can show where
   // the answer came from. Portal answers and greetings have no document.
-  const sources = answeredFromPortal || conversational
-    ? []
-    : (answeredFromFile
-      ? attachments.map((attachment) => attachment.filename)
-      : [...new Set(topChunks
-        .map((chunk) => (chunk.source === 'faq' ? 'Staff FAQ' : chunk.filename))
-        .map((name) => String(name || '').replace(/\s*\(part\s+\d+\/\d+\)$/i, '').trim())
+  const sources = answeredFromFile
+    ? attachments.map((attachment) => attachment.filename)
+    : (conversational || (Boolean(student) && personalQuestion)
+      ? []
+      : [...new Set(usedSourceIds
+        .map((id) => Number(id.slice(1)) - 1)
+        .filter((index) => index >= 0 && index < topChunks.length)
+        .map((index) => String(topChunks[index].filename || '').replace(/\s*\(part\s+\d+\/\d+\)$/i, '').trim())
         .filter(Boolean))]);
 
   return {
@@ -575,4 +688,12 @@ if (require.main === module) {
   });
 }
 
-module.exports = { askQuestion, isLockedQuestion, isOutOfScope };
+module.exports = {
+  askQuestion,
+  isLockedQuestion,
+  isOutOfScope,
+  summarizeConversation,
+  rewriteStandaloneQuestion,
+  rewriteCampusFollowUp,
+  isGreetingOrThanks,
+};

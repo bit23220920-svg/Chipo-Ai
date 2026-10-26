@@ -2,7 +2,7 @@
 //
 // Gates for the admin dashboard's API routes and for the student portal's
 // protected routes. Staff log in via POST /admin/login and students via
-// POST /student/login; both get a JWT back and send it as
+// POST /student/login (or the shared POST /login route); both get a JWT back and send it as
 // "Authorization: Bearer <token>".
 //
 // Staff have one flat role — the staff gate checks "is this a valid staff

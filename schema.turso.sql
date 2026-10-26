@@ -61,6 +61,13 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS chat_conversations (
+  session_id TEXT PRIMARY KEY,
+  summary TEXT NOT NULL DEFAULT '',
+  summarized_through_id INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS students (
   id TEXT PRIMARY KEY,
   student_number TEXT NOT NULL UNIQUE,

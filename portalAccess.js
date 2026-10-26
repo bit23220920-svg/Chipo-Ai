@@ -410,6 +410,33 @@ function isVagueFollowUp(question) {
   return VAGUE_FOLLOW_UPS.some((pattern) => pattern.test(text));
 }
 
+/**
+ * True when a short reply answers a clarification or refers to a topic in the
+ * previous assistant turn, rather than starting an unrelated conversation.
+ * @param {string} question
+ * @param {Array<{question: string, answer: string}>} history
+ * @returns {boolean}
+ */
+function isContextualFollowUp(question, history = []) {
+  const text = normalizeForMatch(question);
+  if (!text || text.length > 48 || text.split(' ').length > 6 || !Array.isArray(history)) return false;
+  if (OUT_OF_SCOPE_HINTS.some((hint) => text.includes(normalizeForMatch(hint)))) return false;
+
+  const previousTurn = history[history.length - 1];
+  if (!previousTurn || typeof previousTurn.answer !== 'string') return false;
+
+  const answerAskedForDetails =
+    /\b(?:which|what)\s+(?:field|area|programme|program|course|subject)\b|\b(?:which|what)\s+(?:are|is)\s+(?:you\s+)?(?:interested|looking)\b|\b(?:let|tell)\s+me\b.{0,60}\b(?:field|area|interest|programme|program|course)\b|\bwhat\s+are\s+you\s+considering\b/i
+      .test(previousTurn.answer);
+  const asksWhereReferencedPlacesAre =
+    /\bwhere\b.{0,24}\b(?:they|them|these|those|it|this|that)\b|\b(?:they|them|these|those|it|this|that)\b.{0,24}\b(?:located|situated|based)\b/i
+      .test(text)
+      && /\b(?:campus|campuses|school|faculty|department|hostel|library|building|office)\b/i
+        .test(previousTurn.answer);
+
+  return answerAskedForDetails || asksWhereReferencedPlacesAre;
+}
+
 /* ------------------------------------------------------------------ *
  * What Chipo is allowed to talk about
  * ------------------------------------------------------------------ */
@@ -750,6 +777,7 @@ module.exports = {
   isPreAccountQuestion,
   isWellbeingConcern,
   isVagueFollowUp,
+  isContextualFollowUp,
   BOUNDARY_ANSWER,
   PUBLIC_RULES,
   STUDENT_RULES,

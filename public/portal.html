@@ -2,7 +2,7 @@
 <html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>University of Lusaka Student Portal</title>
 <link rel="icon" type="image/jpeg" href="/images/logo.jpeg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -154,16 +154,16 @@
     <div class="sp-brand"><span class="sp-brand-mark"><img src="/images/logo.jpeg" alt=""></span><span>University of Lusaka<small style="display:block;color:var(--text-muted);font-size:.68rem;font-weight:500;">Student Portal</small></span></div>
 
     <form id="spLoginForm" class="sp-auth-form">
-      <h1>Student sign in</h1>
-      <p>Use your student number and password to open your student portal. Chipo, the student assistant, stays available with you once you are signed in.</p>
+      <h1>Login</h1>
+      <p>Sign in with your username or student number and password. You will be sent to the correct portal.</p>
 
-      <label for="spStudentNumber">Student number</label>
-      <input id="spStudentNumber" name="studentNumber" autocomplete="username" required placeholder="e.g. BIT23220920">
+      <label for="spStudentNumber">Username or student number</label>
+      <input id="spStudentNumber" name="username" autocomplete="username" required placeholder="Enter your username or student number">
 
       <label for="spPassword">Password</label>
       <input id="spPassword" name="password" type="password" autocomplete="current-password" required>
 
-      <button id="spLoginButton" type="submit">Sign in to the student portal</button>
+      <button id="spLoginButton" type="submit">Login</button>
       <div class="sp-login-error" id="spLoginError" role="alert"></div>
       <p class="sp-auth-switch">New student? <button type="button" class="sp-auth-link" id="spShowSignup">Create an account</button></p>
     </form>
@@ -699,22 +699,29 @@
     spLoginButton.textContent = 'Signing inâ€¦';
     spLoginError.textContent = '';
     try {
-      const data = await api('/student/login', {
+      const data = await api('/login', {
         method: 'POST',
         body: JSON.stringify({
-          studentNumber: document.getElementById('spStudentNumber').value.trim(),
+          username: document.getElementById('spStudentNumber').value.trim(),
           password: document.getElementById('spPassword').value,
         }),
       });
-      tokenStore.setItem(TOKEN_KEY, data.token);
-      // Hand the session to Chipo so it can read this student's portal records.
-      window.chipo && window.chipo.setSession(data.token, data.student);
-      await loadPortal();
+      if (data.role === 'student') {
+        tokenStore.setItem(TOKEN_KEY, data.token);
+        // Hand the session to Chipo so it can read this student's portal records.
+        window.chipo && window.chipo.setSession(data.token, data.student);
+        await loadPortal();
+      } else if (data.role === 'staff') {
+        localStorage.setItem('chipo_staff_token', data.token);
+        window.location.assign('/admin.html');
+      } else {
+        throw new Error('Could not determine the correct portal for this account.');
+      }
     } catch (error) {
       spLoginError.textContent = error.message || 'Could not sign in.';
     } finally {
       spLoginButton.disabled = false;
-      spLoginButton.textContent = 'Sign in to the student portal';
+      spLoginButton.textContent = 'Login';
     }
   });
 
@@ -779,6 +786,4 @@
 </script>
 </body>
 </html>
-
-
 

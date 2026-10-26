@@ -26,7 +26,6 @@
   <span class="chipo-label" aria-hidden="true">Ask Chipo</span>
 </button>
 <section class="chat-widget-panel" id="chatWidgetPanel" aria-label="Chipo student assistant">
-  <button class="widget-close" id="chatWidgetClose" type="button" aria-label="Close Chipo chat">Ã—</button>
 <div class="app">
 
   <!-- Sidebar -->
@@ -72,6 +71,7 @@
       <div style="display:flex; align-items:center; gap:12px;">
         <div class="access-badge locked" id="accessBadge" title="Sign in to the student portal and Chipo can read your records.">Portal access: locked</div>
         <div class="status"><span class="dot" id="statusDot"></span> <span id="statusText">Online</span></div>
+        <button class="widget-close" id="chatWidgetClose" type="button" aria-label="Close Chipo chat">&times;</button>
       </div>
     </div>
 
@@ -231,6 +231,22 @@
   let conversationHistory = [];
   let currentConvId = 'current';
   let savedConversations = {};
+  const CONVERSATION_SESSION_KEY = 'chipo_chat_session_id';
+
+  function createConversationSessionId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return 'chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  }
+
+  let conversationSessionId = createConversationSessionId();
+  try {
+    conversationSessionId = sessionStorage.getItem(CONVERSATION_SESSION_KEY) || conversationSessionId;
+    sessionStorage.setItem(CONVERSATION_SESSION_KEY, conversationSessionId);
+  } catch (err) {
+    console.warn('Chat session ID could not be saved for this tab:', err.message);
+  }
 
   // Load saved conversations from localStorage
   function loadSavedConversations() {
@@ -302,6 +318,7 @@
       savedConversations[convId] = {
         title,
         timestamp: new Date().toLocaleString(),
+        sessionId: conversationSessionId,
         history: conversationHistory,
         messages
       };
@@ -317,6 +334,10 @@
     if (!conv) return;
 
     currentConvId = convId;
+    conversationSessionId = conv.sessionId || createConversationSessionId();
+    try { sessionStorage.setItem(CONVERSATION_SESSION_KEY, conversationSessionId); } catch (err) {
+      console.warn('Chat session ID could not be saved for this tab:', err.message);
+    }
     conversationHistory = JSON.parse(JSON.stringify(conv.history));
 
     // Clear and rebuild chat display
@@ -367,6 +388,10 @@
     questionEl.value = '';
     conversationHistory = [];
     currentConvId = 'current';
+    conversationSessionId = createConversationSessionId();
+    try { sessionStorage.setItem(CONVERSATION_SESSION_KEY, conversationSessionId); } catch (err) {
+      console.warn('Chat session ID could not be saved for this tab:', err.message);
+    }
     pendingFiles = [];
     renderAttachTray();
 
@@ -753,7 +778,7 @@
         },
         body: JSON.stringify({
           question,
-          history: conversationHistory,
+          sessionId: conversationSessionId,
           attachmentIds: attached.map((file) => file.id),
         })
       });
@@ -927,7 +952,13 @@
     chatWidgetPanel.classList.toggle('open', open);
     chatLauncher.setAttribute('aria-expanded', String(open));
     if (isAssistantEmbed) window.parent.postMessage({ type: open ? 'chipo-widget-open' : 'chipo-widget-close' }, window.location.origin);
-    if (open) questionEl.focus();
+    if (open) {
+      if (window.matchMedia('(max-width: 760px)').matches) {
+        chatWidgetClose.focus();
+      } else {
+        questionEl.focus();
+      }
+    }
   }
   const chipoMascot = document.getElementById('chipoMascot');
   function makeChipoLookAt(clientX, clientY, viewportWidth, viewportHeight) {

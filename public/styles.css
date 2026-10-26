@@ -79,14 +79,14 @@
   .chat-widget-panel .brand-text h1 { font-size: .78rem; }
   .chat-widget-panel .brand-crest { width: 34px; height: 34px; font-size: .9rem; }
   .chat-widget-panel .topbar { padding: 12px 14px; }
-  .chat-widget-panel .topbar .status { margin-right: 32px; }
+  .chat-widget-panel .topbar .status { margin-right: 0; }
   .chat-widget-panel .access-badge { font-size: .62rem; padding: 3px 8px; }
   .chat-widget-panel .chat-scroll { padding-top: 12px; }
   .chat-widget-panel .welcome { margin-top: 30px; }
   .chat-widget-panel .welcome-hello, .chat-widget-panel .welcome-help { font-size: 2rem; }
   .chat-widget-panel .chat-inner { padding: 0 14px; }
   .chat-widget-panel .input-bar { padding: 10px 12px; }
-  .widget-close { position: absolute; z-index: 5; top: 10px; right: 10px; width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: #fff; color: var(--text-dark); cursor: pointer; }
+  .widget-close { position: static; z-index: 5; flex: 0 0 36px; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: #fff; color: var(--text-dark); font: inherit; font-size: 24px; line-height: 1; cursor: pointer; }
   @keyframes widgetIn { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
   @media (max-width: 760px) {
     .portal { min-height: 100vh; grid-template-columns: 1fr; gap: 36px; padding: 36px 22px 110px; align-content: center; }
@@ -96,6 +96,38 @@
     .chat-widget-panel { right: 8px; bottom: 74px; width: calc(100vw - 16px); height: min(690px, calc(100vh - 90px)); }
     .chat-widget-panel .sidebar { position: absolute; }
     .chat-widget-panel .bubble-col { max-width: 88%; }
+    .chat-widget-panel.open {
+      position: fixed;
+      inset: 0;
+      z-index: 51;
+      width: 100vw;
+      max-width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      max-height: 100dvh;
+      border: 0;
+      border-radius: 0;
+    }
+    .chat-widget-panel .main,
+    .chat-widget-panel .chat-scroll { min-height: 0; }
+    .chat-widget-panel .topbar {
+      gap: 8px;
+      padding-top: calc(10px + env(safe-area-inset-top, 0px));
+      padding-right: max(12px, env(safe-area-inset-right, 0px));
+      padding-left: max(12px, env(safe-area-inset-left, 0px));
+    }
+    .chat-widget-panel .topbar h2 { font-size: .95rem; }
+    .chat-widget-panel .topbar > div:last-child { gap: 6px !important; }
+    .chat-widget-panel .access-badge { font-size: .58rem; padding: 2px 5px; }
+    .chat-widget-panel .widget-close { flex-basis: 38px; width: 38px; height: 38px; }
+    .chat-widget-panel .input-bar {
+      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      padding-right: max(12px, env(safe-area-inset-right, 0px));
+      padding-left: max(12px, env(safe-area-inset-left, 0px));
+    }
+  }
+  @media (max-width: 400px) {
+    .chat-widget-panel .access-badge { display: none; }
   }
 
   .assistant-embed .portal-site { display: none; }
@@ -105,7 +137,7 @@
   .assistant-embed .chat-widget-panel { right: 0; bottom: 62px; }
   .assistant-embed .chat-widget-panel.open { width: min(420px, calc(100vw - 24px)); height: min(680px, calc(100vh - 90px)); }
   @media (max-width: 760px) {
-    .assistant-embed .chat-widget-panel.open { right: 8px; bottom: 72px; width: calc(100vw - 16px); height: min(690px, calc(100vh - 84px)); }
+    .assistant-embed .chat-widget-panel.open { inset: 0; width: 100vw; max-width: 100vw; height: 100vh; height: 100dvh; max-height: 100dvh; }
   }
 
   .app {
