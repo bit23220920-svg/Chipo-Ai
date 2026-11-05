@@ -693,7 +693,7 @@
                 const data = await readJsonResponse(response);
                 if (!response.ok) throw new Error(data.error || 'Could not save your contact details.');
                 const confirmation = document.createElement('p');
-                confirmation.textContent = `Ticket ${data.ticket.id} was sent to ${data.ticket.departmentName || 'staff'} for follow-up.`;
+                confirmation.textContent = `Ticket ${data.ticket.id} was sent to ${data.ticket.departmentName || 'staff'} for follow-up. Ask me to check its status using this reference.`;
                 contactForm.replaceChildren(confirmation);
               }
               catch (err) {

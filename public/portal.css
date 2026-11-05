@@ -1012,39 +1012,70 @@ html[data-theme="dark"] .sp-body {
   font-weight: 500;
 }
 
-.sp-login-card p.sp-auth-switch {
-  margin: 18px 0 0;
-  color: var(--text-muted);
-  font-size: 0.82rem;
+.sp-password-wrap {
+  position: relative;
 }
 
-.sp-login-card .sp-auth-link {
-  display: inline;
-  width: auto;
-  height: auto;
+.sp-password-wrap input {
+  padding-right: 54px;
+}
+
+.sp-login-card .sp-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
   margin: 0;
-  padding: 0;
+  padding: 8px;
   border: 0;
-  border-radius: 0;
-  background: none;
-  color: var(--brand-bright);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
   box-shadow: none;
-  font: inherit;
+  transform: translateY(-50%);
+}
+
+.sp-login-card .sp-password-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sp-login-card .sp-password-toggle:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--brand-deep);
+  box-shadow: none;
+  transform: translateY(-50%);
+}
+
+.sp-login-card .sp-password-toggle:focus-visible {
+  outline: 2px solid var(--brand-mid);
+  outline-offset: 2px;
+}
+
+.sp-login-card p.sp-forgot-row {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.sp-login-card .sp-forgot-link {
+  display: inline;
+  color: var(--brand-bright);
   font-size: 0.82rem;
   font-weight: 650;
   text-decoration: underline;
   text-underline-offset: 2px;
-  cursor: pointer;
 }
 
-.sp-login-card .sp-auth-link:hover {
-  background: none;
+.sp-login-card .sp-forgot-link:hover {
   color: var(--brand-deep);
-  transform: none;
-  box-shadow: none;
 }
 
-.sp-login-card .sp-auth-link:focus-visible {
+.sp-login-card .sp-forgot-link:focus-visible {
   outline: 2px solid var(--brand-mid);
   outline-offset: 2px;
 }

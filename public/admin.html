@@ -451,6 +451,7 @@
   tbody tr:hover { background: rgba(16, 185, 129, 0.08); }
   .cell-muted { color: var(--text-muted); font-size: 0.78rem; }
   .cell-q { white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
+  .cell-q-summary { margin-top: 8px; color: var(--text-muted); font-size: 0.74rem; white-space: pre-line; }
   .cell-ref { white-space: normal; overflow-wrap: anywhere; font-weight: 650; color: var(--neon); }
   .cell-contact-name { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
   .cell-contact-email,
@@ -1091,7 +1092,9 @@
             (t.email ? '<span class="cell-contact-email"><a href="mailto:' + encodeURIComponent(t.email) + '">' + escapeHtml(t.email) + '</a></span>' : '<span class="cell-contact-email">No email provided</span>') +
             (t.phone ? '<span class="cell-contact-phone"><a href="tel:' + encodeURIComponent(t.phone) + '">' + escapeHtml(t.phone) + '</a></span>' : '<span class="cell-contact-phone">No phone provided</span>') +
           '</div></td>' +
-          '<td class="cell-q">' + escapeHtml(t.question) + '</td>' +
+          '<td class="cell-q">' + escapeHtml(t.question) +
+            (t.conversationSummary ? '<div class="cell-q-summary"><strong>Conversation handover</strong><br>' + escapeHtml(t.conversationSummary) + '</div>' : '') +
+          '</td>' +
           '<td>' + escapeHtml(t.departmentName || 'Unassigned') + '</td>' +
           '<td><span class="badge badge-' + t.reason + '">' + (REASON_LABEL[t.reason] || t.reason) + '</span></td>' +
           '<td class="cell-muted">' + (t.confidence === null ? '—' : t.confidence.toFixed(2)) + '</td>' +

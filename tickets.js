@@ -24,6 +24,7 @@ function rowToTicket(row) {
     email: row.email,
     phone: row.phone,
     question: row.question,
+    conversationSummary: row.conversation_summary || null,
     lastAnswer: row.last_answer,
     confidence: row.confidence === null ? null : Number(row.confidence),
     reason: row.reason,
@@ -69,23 +70,30 @@ function normalizeContact({ name, email, phone } = {}) {
  * @param {'low_confidence'|'manual_request'|'wellbeing'} [fields.reason]
  * @param {string} [fields.departmentId] - Routed department, if known.
  */
-async function createTicket({ name, email, phone, question, answer, confidence, reason, departmentId } = {}) {
+async function createTicket({ name, email, phone, question, answer, confidence, reason, departmentId, conversationSummary } = {}) {
   if (!question || !question.trim()) throw badRequest('A question is required to open a ticket.');
   if (question.trim().length > 10000) throw badRequest('Question must be 10,000 characters or fewer.');
+  if (conversationSummary !== undefined && conversationSummary !== null && typeof conversationSummary !== 'string') {
+    throw badRequest('Conversation summary must be text.');
+  }
+  if (typeof conversationSummary === 'string' && conversationSummary.length > 6000) {
+    throw badRequest('Conversation summary must be 6,000 characters or fewer.');
+  }
   const contact = normalizeContact({ name, email, phone });
 
   const id = generateReference();
   const safeReason = VALID_REASONS.includes(reason) ? reason : 'manual_request';
 
   await query(
-    `INSERT INTO tickets (id, name, email, phone, question, last_answer, confidence, reason, department_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    `INSERT INTO tickets (id, name, email, phone, question, conversation_summary, last_answer, confidence, reason, department_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       id,
       contact.name,
       contact.email,
       contact.phone,
       question.trim(),
+      typeof conversationSummary === 'string' ? conversationSummary.trim() || null : null,
       answer ? String(answer).trim() : null,
       typeof confidence === 'number' ? confidence : null,
       safeReason,

@@ -23,6 +23,7 @@ async function main() {
       ['staff_users', 'is_admin', 'INTEGER NOT NULL DEFAULT 1'],
       ['departments', 'routing_keywords', 'TEXT NULL'],
       ['tickets', 'phone', 'TEXT NULL'],
+      ['tickets', 'conversation_summary', 'TEXT NULL'],
       ['chat_messages', 'student_id', 'TEXT NULL'],
       ['chat_messages', 'student_number', 'TEXT NULL'],
     ];
@@ -63,6 +64,10 @@ async function main() {
     const [ticketPhoneColumns] = await pool.query("SHOW COLUMNS FROM tickets LIKE 'phone'");
     if (!ticketPhoneColumns.length) {
       await pool.query('ALTER TABLE tickets ADD COLUMN phone VARCHAR(40) NULL AFTER email');
+    }
+    const [ticketSummaryColumns] = await pool.query("SHOW COLUMNS FROM tickets LIKE 'conversation_summary'");
+    if (!ticketSummaryColumns.length) {
+      await pool.query('ALTER TABLE tickets ADD COLUMN conversation_summary TEXT NULL AFTER question');
     }
     const [chatStudentColumns] = await pool.query("SHOW COLUMNS FROM chat_messages LIKE 'student_id'");
     if (!chatStudentColumns.length) {

@@ -188,15 +188,39 @@ function contactFromQuestion(question) {
   return { name, email, phone };
 }
 
+function summarizeTicketHandover(turns, question, answer, earlierSummary = '') {
+  const lines = [`Issue: ${String(question || '').trim().slice(0, 1200)}`];
+  if (earlierSummary) {
+    lines.push(`Earlier conversation summary: ${String(earlierSummary).trim().slice(0, 1200)}`);
+  }
+  const recentTurns = (Array.isArray(turns) ? turns : []).slice(-3);
+  if (recentTurns.length) {
+    lines.push('Recent conversation:');
+    for (const turn of recentTurns) {
+      if (turn.question) lines.push(`Student: ${String(turn.question).trim().slice(0, 600)}`);
+      if (turn.answer) lines.push(`Chipo: ${String(turn.answer).trim().slice(0, 600)}`);
+    }
+  }
+  if (answer) lines.push(`Chipo's response: ${String(answer).trim().slice(0, 600)}`);
+  return lines.join('\n').slice(0, 6000);
+}
+
+function parseTicketStatusRequest(question) {
+  const reference = question.match(/\b(TCK-[A-F0-9]{16})\b/i);
+  if (!/\b(?:ticket|reference)\b/i.test(question) && !reference) return null;
+  if (!/\b(?:status|track(?:ing)?|progress|check|update)\b/i.test(question)) return null;
+  return { reference: reference ? reference[1].toUpperCase() : null };
+}
+
 /**
  * Route a question to the right department and open a ticket for it.
  *
  * @param {{question: string, answer?: string, confidence?: number,
  *          reason?: string, departmentId?: string|null,
  *          contact: {name?: string, email?: string, phone?: string},
- *          routingContext?: string[]}} fields
+ *          routingContext?: string[], conversationSummary?: string}} fields
  */
-async function routeAndCreateTicket({ question, answer, confidence, reason, departmentId, contact, routingContext = [], forceDepartmentId = null }) {
+async function routeAndCreateTicket({ question, answer, confidence, reason, departmentId, contact, routingContext = [], conversationSummary, forceDepartmentId = null }) {
   const availableDepartments = await departments.listDepartments();
   const preferredDepartmentId = availableDepartments.some((department) => department.id === departmentId)
     ? departmentId
@@ -214,6 +238,7 @@ async function routeAndCreateTicket({ question, answer, confidence, reason, depa
     confidence,
     reason,
     departmentId: routedDepartmentId,
+    conversationSummary,
   });
 
   notifyTicketChange();
@@ -261,6 +286,46 @@ async function chatResponse(req, student) {
 
   const access = student ? 'student' : 'public';
   console.log(`Portal access for this request: ${access}${student ? ` (${student.studentNumber})` : ''}`);
+
+  const statusRequest = parseTicketStatusRequest(question);
+  if (statusRequest) {
+    let answer;
+    let ticket = null;
+    if (!statusRequest.reference) {
+      answer = 'Please send the ticket reference (for example, TCK-0123456789ABCDEF) and I can check its status.';
+    } else {
+      ticket = await tickets.getTicket(statusRequest.reference);
+      if (!ticket) {
+        answer = `I couldn't find a ticket with reference ${statusRequest.reference}. Check the reference and try again.`;
+      } else {
+        const statusLabel = { open: 'Open', in_progress: 'In progress', resolved: 'Resolved' }[ticket.status] || ticket.status;
+        const department = ticket.departmentName ? ` It is assigned to ${ticket.departmentName}.` : '';
+        answer = `Ticket ${ticket.id} is currently ${statusLabel}.${department} Last updated: ${ticket.updatedAt}.`;
+      }
+    }
+    await chatlog.logMessage({
+      sessionId,
+      question,
+      answer,
+      confidence: null,
+      needsHuman: false,
+      source: 'ticket_status',
+      studentId: student ? student.id : null,
+      studentNumber: student ? student.studentNumber : null,
+    });
+    return {
+      status: 200,
+      body: {
+        sessionId,
+        answer,
+        confidence: null,
+        needsHuman: false,
+        access,
+        sources: [],
+        ticket: ticket ? { id: ticket.id, departmentName: ticket.departmentName, status: ticket.status, updatedAt: ticket.updatedAt } : null,
+      },
+    };
+  }
 
   const ticketRequest = isTicketRequest(question);
   const attachments = attachmentStore.getMany(attachmentIds);
@@ -321,6 +386,7 @@ async function chatResponse(req, student) {
           forceDepartmentId: forcedDepartmentId,
           contact,
           routingContext: safeHistory.map((turn) => turn.question.slice(0, 1000)),
+          conversationSummary: summarizeTicketHandover(safeHistory, question, result.answer, conversation.summary),
         });
       } catch (err) {
         console.error('Could not open the ticket:', err.message);
@@ -331,12 +397,12 @@ async function chatResponse(req, student) {
     if (ticket) {
       const officeName = ticket.departmentName || 'the right university team';
       if (wellbeing) {
-        note = `I've asked Student Affairs to reach out to you. Your reference is ${ticket.id}. Staff will contact you using the details on your portal account.`;
+        note = `I've asked Student Affairs to reach out to you. Your reference is ${ticket.id}. Staff will contact you using the details on your portal account. You can ask me to check its status using that reference.`;
       } else {
         const prefix = ticketRequest
           ? "I've sent this"
           : "I wasn't completely sure about that, so I've sent it";
-        note = `${prefix} to ${officeName}. Your reference is ${ticket.id}. Staff will contact you using the details on your portal account.`;
+        note = `${prefix} to ${officeName}. Your reference is ${ticket.id}. Staff will contact you using the details on your portal account. You can ask me to check its status using that reference.`;
       }
     } else if (student) {
       // No ticket: either the database failed or the portal has no email or
@@ -387,6 +453,7 @@ async function chatResponse(req, student) {
             confidence,
             departmentId: result.departmentId,
             routingContext: safeHistory.map((turn) => turn.question.slice(0, 1000)),
+            conversationSummary: summarizeTicketHandover(safeHistory, question, result.answer, conversation.summary),
             reason: wellbeing ? 'wellbeing' : (ticketRequest ? 'manual_request' : 'low_confidence'),
           }
         : null,
@@ -443,7 +510,7 @@ app.post('/portal/ask', handle(async (req, res) => {
 
 app.post('/tickets', handle(async (req, res) => {
   const body = req.body || {};
-  const { question, answer, confidence, name, email, phone, reason } = body;
+  const { question, answer, confidence, name, email, phone, reason, conversationSummary } = body;
   if (typeof question !== 'string' || !question.trim()) {
     return res.status(400).json({ error: 'A question is required to open a ticket.' });
   }
@@ -459,6 +526,7 @@ app.post('/tickets', handle(async (req, res) => {
     departmentId: body.departmentId,
     contact: { name, email, phone },
     routingContext,
+    conversationSummary,
   });
   res.status(201).json({ ticket: { id: ticket.id, departmentName: ticket.departmentName, status: ticket.status } });
 }));
@@ -501,10 +569,9 @@ app.post('/student/login', handle(async (req, res) => {
   res.json({ token, student });
 }));
 
-// Public self-registration for student accounts, used by the "Create an
-// account" form on the portal sign-in screen. It is enabled by default for
-// the demo; set ALLOW_STUDENT_SIGNUP=false to close it and fall back to the
-// create-student.js CLI.
+// Public self-registration endpoint for student accounts. It is enabled by
+// default for the demo; set ALLOW_STUDENT_SIGNUP=false to close it and fall
+// back to the create-student.js CLI.
 app.post('/student/register', handle(async (req, res) => {
   if (String(process.env.ALLOW_STUDENT_SIGNUP || '').toLowerCase() === 'false') {
     return res.status(403).json({ error: 'Student sign-up is closed. Please contact the Registry for an account.' });

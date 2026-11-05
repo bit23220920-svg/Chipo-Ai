@@ -26,10 +26,6 @@
   .sp-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .sp-field-row > div { min-width: 0; }
   .sp-login-card .sp-optional { color: var(--text-muted); font-weight: 500; }
-  .sp-login-card p.sp-auth-switch { margin: 18px 0 0; color: var(--text-muted); font-size: .82rem; }
-  .sp-login-card .sp-auth-link { display: inline; width: auto; height: auto; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--green-mid); font: inherit; font-size: .82rem; font-weight: 650; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-  .sp-login-card .sp-auth-link:hover { color: var(--green-deep); }
-  .sp-login-card .sp-auth-link:focus-visible { outline: 2px solid var(--green-mid); outline-offset: 2px; }
   @media (max-width: 460px) {
     .sp-login-card { padding: 26px 22px; }
   }
@@ -161,70 +157,19 @@
       <input id="spStudentNumber" name="username" autocomplete="username" required placeholder="Enter your username or student number">
 
       <label for="spPassword">Password</label>
-      <input id="spPassword" name="password" type="password" autocomplete="current-password" required>
+      <div class="sp-password-wrap">
+        <input id="spPassword" name="password" type="password" autocomplete="current-password" required>
+        <button id="spTogglePassword" class="sp-password-toggle" type="button" aria-label="Show password" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+      </div>
 
       <button id="spLoginButton" type="submit">Login</button>
       <div class="sp-login-error" id="spLoginError" role="alert"></div>
-      <p class="sp-auth-switch">New student? <button type="button" class="sp-auth-link" id="spShowSignup">Create an account</button></p>
-    </form>
-
-    <form id="spSignupForm" class="sp-auth-form" hidden>
-      <h1>Create your account</h1>
-      <p>Set up your University of Lusaka student account to open the portal and let Chipo read your own records.</p>
-
-      <label for="spSignupName">Full name</label>
-      <input id="spSignupName" name="fullName" autocomplete="name" required placeholder="e.g. John Sichula" maxlength="120">
-
-      <label for="spSignupNumber">Student number</label>
-      <input id="spSignupNumber" name="studentNumber" autocomplete="username" required placeholder="e.g. BIT23220920" maxlength="20">
-
-      <div class="sp-field-row">
-        <div>
-          <label for="spSignupProgramme">Programme</label>
-          <input id="spSignupProgramme" name="programme" list="spProgrammeOptions" placeholder="e.g. BSc Computer Science" maxlength="120">
-          <datalist id="spProgrammeOptions">
-            <option value="BSc Computer Science"></option>
-            <option value="BSc Information Technology"></option>
-            <option value="Diploma in Information Technology"></option>
-            <option value="Bachelor of Laws (LLB)"></option>
-            <option value="Bachelor of Business Administration"></option>
-            <option value="Bachelor of Accountancy"></option>
-            <option value="BSc Nursing"></option>
-          </datalist>
-        </div>
-        <div>
-          <label for="spSignupYear">Year of study</label>
-          <select id="spSignupYear" name="yearOfStudy">
-            <option value="Year 1">Year 1</option>
-            <option value="Year 2">Year 2</option>
-            <option value="Year 3">Year 3</option>
-            <option value="Year 4">Year 4</option>
-            <option value="Year 5">Year 5</option>
-            <option value="Year 6">Year 6</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="sp-field-row">
-        <div>
-          <label for="spSignupEmail">Email <span class="sp-optional">(optional)</span></label>
-          <input id="spSignupEmail" name="email" type="email" autocomplete="email" placeholder="you@student.unilus.edu.zm" maxlength="255">
-        </div>
-        <div>
-          <label for="spSignupPhone">Phone <span class="sp-optional">(optional)</span></label>
-          <input id="spSignupPhone" name="phone" type="tel" autocomplete="tel" placeholder="+260 ..." maxlength="40">
-        </div>
-      </div>
-
-      <label for="spSignupPassword">Password</label>
-      <input id="spSignupPassword" name="password" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters">
-
-      <label for="spSignupConfirm">Confirm password</label>
-      <input id="spSignupConfirm" name="confirmPassword" type="password" autocomplete="new-password" required>
-
-      <button id="spSignupButton" type="submit">Create my account</button>
-      <div class="sp-login-error" id="spSignupError" role="alert"></div>
-      <p class="sp-auth-switch">Already registered? <button type="button" class="sp-auth-link" id="spShowLogin">Sign in instead</button></p>
+      <p class="sp-forgot-row"><a class="sp-forgot-link" href="mailto:it@unilus.edu.zm?subject=Student%20portal%20password%20reset">Forgot password? Contact IT Support</a></p>
     </form>
 
     <a class="sp-login-back" href="/">&larr; Back to the university website</a>
@@ -258,7 +203,6 @@
         </button>
         <button type="button" class="sp-ask" id="spAskButton">Ask Chipo</button>
         <button type="button" id="spLogoutButton">Log out</button>
-        <a href="/">Website</a>
       </div>
     </header>
 
@@ -292,9 +236,8 @@
   const spLoginForm = document.getElementById('spLoginForm');
   const spLoginError = document.getElementById('spLoginError');
   const spLoginButton = document.getElementById('spLoginButton');
-  const spSignupForm = document.getElementById('spSignupForm');
-  const spSignupError = document.getElementById('spSignupError');
-  const spSignupButton = document.getElementById('spSignupButton');
+  const spPassword = document.getElementById('spPassword');
+  const spTogglePassword = document.getElementById('spTogglePassword');
   const spBreadcrumb = document.getElementById('spBreadcrumb');
   const spMenuButton = document.getElementById('spMenuButton');
   const spMenuClose = document.getElementById('spMenuClose');
@@ -338,7 +281,6 @@
     spBoot.hidden = true;
     spPortal.hidden = true;
     spLogin.hidden = false;
-    toggleAuthForm(false);
     spLoginError.textContent = message || '';
   }
 
@@ -346,15 +288,6 @@
     spBoot.hidden = false;
     spLogin.hidden = true;
     spPortal.hidden = true;
-  }
-
-  function toggleAuthForm(showSignup) {
-    spLoginForm.hidden = showSignup;
-    spSignupForm.hidden = !showSignup;
-    spLoginError.textContent = '';
-    spSignupError.textContent = '';
-    if (showSignup) document.getElementById('spSignupName').focus();
-    else document.getElementById('spStudentNumber').focus();
   }
 
   function showPortal() {
@@ -725,46 +658,11 @@
     }
   });
 
-  document.getElementById('spShowSignup').addEventListener('click', () => toggleAuthForm(true));
-  document.getElementById('spShowLogin').addEventListener('click', () => toggleAuthForm(false));
-
-  spSignupForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    spSignupError.textContent = '';
-    const password = document.getElementById('spSignupPassword').value;
-    if (password.length < 8) {
-      spSignupError.textContent = 'Choose a password with at least 8 characters.';
-      return;
-    }
-    if (password !== document.getElementById('spSignupConfirm').value) {
-      spSignupError.textContent = 'The two passwords do not match.';
-      return;
-    }
-
-    spSignupButton.disabled = true;
-    spSignupButton.textContent = 'Creating your account.';
-    try {
-      const data = await api('/student/register', {
-        method: 'POST',
-        body: JSON.stringify({
-          fullName: document.getElementById('spSignupName').value.trim(),
-          studentNumber: document.getElementById('spSignupNumber').value.trim(),
-          programme: document.getElementById('spSignupProgramme').value.trim() || null,
-          yearOfStudy: document.getElementById('spSignupYear').value,
-          email: document.getElementById('spSignupEmail').value.trim() || null,
-          phone: document.getElementById('spSignupPhone').value.trim() || null,
-          password,
-        }),
-      });
-      tokenStore.setItem(TOKEN_KEY, data.token);
-      window.chipo && window.chipo.setSession(data.token, data.student);
-      await loadPortal();
-    } catch (error) {
-      spSignupError.textContent = error.message || 'Could not create your account.';
-    } finally {
-      spSignupButton.disabled = false;
-      spSignupButton.textContent = 'Create my account';
-    }
+  spTogglePassword.addEventListener('click', () => {
+    const showPassword = spPassword.type === 'password';
+    spPassword.type = showPassword ? 'text' : 'password';
+    spTogglePassword.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+    spTogglePassword.setAttribute('aria-pressed', showPassword ? 'true' : 'false');
   });
 
   document.getElementById('spLogoutButton').addEventListener('click', logout);
@@ -786,4 +684,3 @@
 </script>
 </body>
 </html>
-

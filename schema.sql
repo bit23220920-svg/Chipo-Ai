@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   email VARCHAR(255),
   phone VARCHAR(40),
   question TEXT NOT NULL,
+  conversation_summary TEXT,
   last_answer TEXT,
   confidence FLOAT,
   reason VARCHAR(30) NOT NULL DEFAULT 'manual_request',
