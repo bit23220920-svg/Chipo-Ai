@@ -46,10 +46,13 @@ CREATE TABLE IF NOT EXISTS tickets (
   confidence FLOAT,
   reason VARCHAR(30) NOT NULL DEFAULT 'manual_request',
   department_id CHAR(36),
-  status VARCHAR(20) NOT NULL DEFAULT 'open',
+  student_id CHAR(36) NULL,
+  subject VARCHAR(255) NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'opened',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_tickets_status (status),
+  INDEX idx_tickets_student (student_id),
   CONSTRAINT fk_tickets_department FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -122,4 +125,50 @@ CREATE TABLE IF NOT EXISTS system_logs (
   detail TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_system_logs_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-student chat memory. A student has many conversations; the newest one is
+-- the "current" chat. messages.role is 'user' or 'assistant'.
+CREATE TABLE IF NOT EXISTS conversations (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  student_id CHAR(36) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_conversations_student (student_id, id),
+  CONSTRAINT fk_conversations_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS messages (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  conversation_id BIGINT UNSIGNED NOT NULL,
+  role VARCHAR(20) NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_messages_conversation (conversation_id, id),
+  CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Every ticket status change leaves one event, and (for tickets that belong to
+-- a student) one notification for that student.
+CREATE TABLE IF NOT EXISTS ticket_events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  ticket_id VARCHAR(20) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  note TEXT NULL,
+  staff_id CHAR(36) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ticket_events_ticket (ticket_id, id),
+  CONSTRAINT fk_ticket_events_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ticket_events_staff FOREIGN KEY (staff_id) REFERENCES staff_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  student_id CHAR(36) NOT NULL,
+  ticket_id VARCHAR(20) NOT NULL,
+  message VARCHAR(500) NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_notifications_student (student_id, is_read, id),
+  CONSTRAINT fk_notifications_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  CONSTRAINT fk_notifications_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

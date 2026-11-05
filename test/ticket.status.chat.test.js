@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { app } = require('../server.js');
 const ask = require('../ask.js');
 const chatlog = require('../chatlog.js');
+const conversations = require('../conversations.js');
 const departments = require('../departments.js');
 const studentAuth = require('../studentAuth.js');
 const tickets = require('../tickets.js');
@@ -53,7 +54,7 @@ test('chat checks a ticket reference and returns its current status without call
 
       assert.equal(response.status, 200);
       assert.equal(lookedUp, 'TCK-0123456789ABCDEF');
-      assert.match(body.answer, /currently In progress/);
+      assert.match(body.answer, /currently In Progress/);
       assert.match(body.answer, /assigned to Accounts/);
       assert.equal(body.ticket.status, 'in_progress');
       assert.equal(logged.source, 'ticket_status');
@@ -92,7 +93,9 @@ test('chat asks for a reference when a status lookup has no ticket number', asyn
 });
 
 test('staff handover includes a summary of the recent conversation', async () => {
-  const originalLoadHistory = chatlog.loadConversationHistory;
+  const originalGetCurrent = conversations.getOrCreateCurrent;
+  const originalLoadRecent = conversations.loadRecent;
+  const originalSaveExchange = conversations.saveExchange;
   const originalLogMessage = chatlog.logMessage;
   const originalAsk = ask.askQuestion;
   const originalListDepartments = departments.listDepartments;
@@ -100,6 +103,7 @@ test('staff handover includes a summary of the recent conversation', async () =>
   const originalVerifyToken = studentAuth.verifyToken;
   const originalGetProfile = studentAuth.getStudentProfile;
   const createdTickets = [];
+  const saved = [];
   const student = {
     id: 'student-1',
     studentNumber: 'BIT23220920',
@@ -108,14 +112,19 @@ test('staff handover includes a summary of the recent conversation', async () =>
     phone: null,
   };
 
-  chatlog.loadConversationHistory = async () => ({
-    summary: 'The student has been trying to resolve a tuition payment issue.',
-    messages: [],
-    turns: [
-      { question: 'I paid my tuition yesterday.', answer: 'I can help with fee questions.' },
-      { question: 'The payment is not showing.', answer: 'I could not confirm the payment status.' },
-    ],
-  });
+  // A signed-in student's history is their own conversation, last 15 messages.
+  conversations.getOrCreateCurrent = async () => ({ id: 7 });
+  conversations.loadRecent = async (conversationId, studentId) => {
+    assert.equal(conversationId, 7);
+    assert.equal(studentId, 'student-1');
+    return [
+      { id: 1, role: 'user', content: 'I paid my tuition yesterday.' },
+      { id: 2, role: 'assistant', content: 'I can help with fee questions.' },
+      { id: 3, role: 'user', content: 'The payment is not showing.' },
+      { id: 4, role: 'assistant', content: 'I could not confirm the payment status.' },
+    ];
+  };
+  conversations.saveExchange = async (exchange) => { saved.push(exchange); };
   chatlog.logMessage = async () => {};
   ask.askQuestion = async () => ({
     answer: 'I cannot see the payment in the available records.',
@@ -128,7 +137,7 @@ test('staff handover includes a summary of the recent conversation', async () =>
   departments.listDepartments = async () => [{ id: 'accounts-id', name: 'Accounts' }];
   tickets.createTicket = async (fields) => {
     createdTickets.push(fields);
-    return { id: 'TCK-0123456789ABCDEF', status: 'open' };
+    return { id: 'TCK-0123456789ABCDEF', status: 'opened' };
   };
   studentAuth.verifyToken = () => ({ sub: student.id, type: 'student' });
   studentAuth.getStudentProfile = async () => student;
@@ -151,13 +160,21 @@ test('staff handover includes a summary of the recent conversation', async () =>
       assert.equal(response.status, 200);
       assert.equal(createdTickets.length, 1);
       assert.match(createdTickets[0].conversationSummary, /Issue: Please have someone check it\./);
-      assert.match(createdTickets[0].conversationSummary, /trying to resolve a tuition payment issue/);
       assert.match(createdTickets[0].conversationSummary, /I paid my tuition yesterday/);
       assert.match(createdTickets[0].conversationSummary, /I could not confirm the payment status/);
       assert.match(body.answer, /check its status using that reference/);
+      // The ticket belongs to the signed-in student, so its status changes can
+      // reach them as notifications.
+      assert.equal(createdTickets[0].studentId, 'student-1');
+      // And the exchange was saved to that student's conversation.
+      assert.equal(saved.length, 1);
+      assert.equal(saved[0].studentId, 'student-1');
+      assert.equal(saved[0].question, 'Please have someone check it.');
     });
   } finally {
-    chatlog.loadConversationHistory = originalLoadHistory;
+    conversations.getOrCreateCurrent = originalGetCurrent;
+    conversations.loadRecent = originalLoadRecent;
+    conversations.saveExchange = originalSaveExchange;
     chatlog.logMessage = originalLogMessage;
     ask.askQuestion = originalAsk;
     departments.listDepartments = originalListDepartments;

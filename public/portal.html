@@ -201,6 +201,18 @@
           <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
         </button>
+        <div class="sp-bell-wrap">
+          <button type="button" class="sp-bell" id="spBell" aria-haspopup="true" aria-expanded="false" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+            <span class="sp-bell-count" id="spBellCount" hidden>0</span>
+          </button>
+          <div class="sp-bell-panel" id="spBellPanel" hidden>
+            <div class="sp-bell-title">Notifications</div>
+            <div id="spNotifList"></div>
+            <div class="sp-bell-title">My tickets</div>
+            <div id="spTicketList"></div>
+          </div>
+        </div>
         <button type="button" class="sp-ask" id="spAskButton">Ask Chipo</button>
         <button type="button" id="spLogoutButton">Log out</button>
       </div>
@@ -607,6 +619,7 @@
       showPortal();
       renderNav();
       render();
+      startNotificationPolling();
       // A session restored from a previous visit still gives Chipo access.
       window.chipo && window.chipo.setSession(token(), portalData.profile);
     } catch (error) {
@@ -616,7 +629,78 @@
     }
   }
 
+  // ---- Notifications bell and ticket list ----
+  const STATUS_TEXT = { opened: 'Opened', in_progress: 'In Progress', resolved: 'Resolved' };
+  const bell = document.getElementById('spBell');
+  const bellCount = document.getElementById('spBellCount');
+  const bellPanel = document.getElementById('spBellPanel');
+  let notifTimer = null;
+
+  function setBellCount(n) {
+    bellCount.textContent = n > 99 ? '99+' : String(n);
+    bellCount.hidden = !n;
+  }
+
+  function renderNotifications(list) {
+    document.getElementById('spNotifList').innerHTML = list.length
+      ? list.map((n) => '<div class="sp-notif' + (n.isRead ? '' : ' unread') + '"><div>' + escapeHtml(n.message) +
+          '</div><small>' + escapeHtml(formatDate(n.createdAt)) + '</small></div>').join('')
+      : '<div class="sp-empty">No notifications yet.</div>';
+  }
+
+  function renderTickets(list) {
+    document.getElementById('spTicketList').innerHTML = list.length
+      ? list.map((t) => '<div class="sp-ticket"><div><b>' + escapeHtml(t.id) + '</b> · ' + escapeHtml(t.departmentName || 'Unassigned') +
+          '<br><small>' + escapeHtml(t.subject || '') + '</small></div><span class="sp-status sp-status-' + escapeHtml(t.status) + '">' +
+          escapeHtml(STATUS_TEXT[t.status] || t.status) + '</span></div>').join('')
+      : '<div class="sp-empty">You have no tickets.</div>';
+  }
+
+  async function refreshNotifications() {
+    if (!token()) return;
+    try {
+      const data = await api('/student/notifications');
+      setBellCount(data.unreadCount);
+      renderNotifications(data.notifications);
+      if (!bellPanel.hidden) loadTicketList();
+    } catch (error) { /* try again on the next tick */ }
+  }
+
+  async function loadTicketList() {
+    try { renderTickets((await api('/student/tickets')).tickets); } catch (error) { /* keep old list */ }
+  }
+
+  async function toggleBell() {
+    const open = bellPanel.hidden;
+    bellPanel.hidden = !open;
+    bell.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    await refreshNotifications();
+    await loadTicketList();
+    try {
+      await api('/student/notifications/read', { method: 'POST', body: '{}' });
+      setBellCount(0); // shown as read from now on; the list keeps its unread highlight until closed
+    } catch (error) { /* stays unread */ }
+  }
+
+  function startNotificationPolling() {
+    stopNotificationPolling();
+    refreshNotifications();
+    notifTimer = setInterval(refreshNotifications, 30000);
+  }
+  function stopNotificationPolling() {
+    if (notifTimer) clearInterval(notifTimer);
+    notifTimer = null;
+    bellPanel.hidden = true;
+    setBellCount(0);
+  }
+
+  bell.addEventListener('click', (event) => { event.stopPropagation(); toggleBell(); });
+  bellPanel.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('click', () => { bellPanel.hidden = true; bell.setAttribute('aria-expanded', 'false'); });
+
   async function logout() {
+    stopNotificationPolling();
     try { await api('/student/logout', { method: 'POST' }); } catch (error) { /* token is discarded either way */ }
     tokenStore.removeItem(TOKEN_KEY);
     portalData = null;
