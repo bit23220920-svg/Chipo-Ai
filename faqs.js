@@ -13,6 +13,18 @@ const crypto = require('crypto');
 const { query } = require('./db.js');
 const { embedText } = require('./embeddings.js');
 
+// Saving a FAQ must not fail just because Gemini is unreachable or there is
+// no key: the FAQ is stored without an embedding and the local search uses it.
+async function tryEmbed(text) {
+  if (!process.env.GEMINI_API_KEY) return null;
+  try {
+    return await embedText(text);
+  } catch (err) {
+    console.error('Could not embed FAQ, saving it without an embedding:', err.message);
+    return null;
+  }
+}
+
 function fingerprint(question, answer) {
   return crypto.createHash('sha256').update(`${question}\n${answer}`).digest('hex');
 }
@@ -51,13 +63,14 @@ async function createFaq({ question, answer, departmentId, isActive = true }) {
   if (!answer || !answer.trim()) throw badRequest('answer is required.');
 
   const hash = fingerprint(question, answer);
-  const embedding = await embedText(`${question}\n${answer}`);
+  const embedding = await tryEmbed(`${question}\n${answer}`);
   const id = crypto.randomUUID();
 
   await query(
     `INSERT INTO faqs (id, question, answer, department_id, is_active, embedding, embedded_hash)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [id, question.trim(), answer.trim(), departmentId || null, isActive, JSON.stringify(embedding), hash]
+    [id, question.trim(), answer.trim(), departmentId || null, isActive,
+      embedding ? JSON.stringify(embedding) : null, embedding ? hash : null]
   );
   return getFaq(id);
 }
@@ -73,12 +86,14 @@ async function updateFaq(id, { question, answer, departmentId, isActive }) {
   const nextActive = isActive !== undefined ? isActive : current.is_active;
 
   const hash = fingerprint(nextQuestion, nextAnswer);
-  let embeddingJson = typeof current.embedding === 'string'
-    ? current.embedding
-    : JSON.stringify(current.embedding);
+  let embeddingJson = current.embedding == null
+    ? null
+    : (typeof current.embedding === 'string' ? current.embedding : JSON.stringify(current.embedding));
+  let embeddedHash = current.embedded_hash || null;
   if (hash !== current.embedded_hash) {
-    const embedding = await embedText(`${nextQuestion}\n${nextAnswer}`);
-    embeddingJson = JSON.stringify(embedding);
+    const embedding = await tryEmbed(`${nextQuestion}\n${nextAnswer}`);
+    embeddingJson = embedding ? JSON.stringify(embedding) : null;
+    embeddedHash = embedding ? hash : null;
   }
 
   await query(
@@ -86,7 +101,7 @@ async function updateFaq(id, { question, answer, departmentId, isActive }) {
      SET question = $1, answer = $2, department_id = $3, is_active = $4,
          embedding = $5, embedded_hash = $6, updated_at = CURRENT_TIMESTAMP
      WHERE id = $7`,
-    [nextQuestion.trim(), nextAnswer.trim(), nextDept || null, nextActive, embeddingJson, hash, id]
+    [nextQuestion.trim(), nextAnswer.trim(), nextDept || null, nextActive, embeddingJson, embeddedHash, id]
   );
   return getFaq(id);
 }
@@ -100,6 +115,21 @@ async function deleteFaq(id) {
 // the PDF chunks (filename/text/embedding) plus a 'source' tag, so the two
 // can be scored and merged in one pass.
 async function getActiveFaqChunks() {
+  // FAQs saved while Gemini was unavailable have no embedding yet. Give them
+  // one now that it is, so they are searchable here too.
+  const missing = await query(
+    `SELECT id, question, answer FROM faqs WHERE is_active = true AND embedding IS NULL`
+  );
+  for (const row of missing.rows) {
+    const embedding = await tryEmbed(`${row.question}\n${row.answer}`);
+    if (embedding) {
+      await query(
+        `UPDATE faqs SET embedding = $1, embedded_hash = $2 WHERE id = $3`,
+        [JSON.stringify(embedding), fingerprint(row.question, row.answer), row.id]
+      );
+    }
+  }
+
   const { rows } = await query(
     `SELECT id, question, answer, department_id, embedding FROM faqs WHERE is_active = true AND embedding IS NOT NULL`
   );
@@ -113,10 +143,27 @@ async function getActiveFaqChunks() {
   }));
 }
 
+// Every active FAQ as plain text, whether or not it has an embedding. The
+// local (no-API-key) search reads these, so a FAQ saved while Gemini was
+// unavailable still works.
+async function getActiveFaqTexts() {
+  const { rows } = await query(
+    `SELECT id, question, answer, department_id FROM faqs WHERE is_active = true`
+  );
+  return rows.map((row) => ({
+    filename: `FAQ: ${row.question}`,
+    text: `${row.question}\n${row.answer}`,
+    source: 'faq',
+    faqId: row.id,
+    departmentId: row.department_id,
+  }));
+}
+
 function badRequest(message) {
   const err = new Error(message);
   err.statusCode = 400;
   return err;
 }
 
-module.exports = { listFaqs, getFaq, createFaq, updateFaq, deleteFaq, getActiveFaqChunks };
+module.exports = {
+  getActiveFaqTexts, listFaqs, getFaq, createFaq, updateFaq, deleteFaq, getActiveFaqChunks };

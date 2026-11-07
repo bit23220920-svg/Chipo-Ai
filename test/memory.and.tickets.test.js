@@ -319,6 +319,10 @@ test('if the model cannot rewrite the question, retrieval uses the question as t
 });
 
 test('the rewrite is given the conversation and its result is what retrieval uses', async () => {
+  // The rewrite step is only attempted when a Gemini key is configured.
+  const savedKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = 'test-key';
+  ask.resetGeminiCooldown();
   const original = embeddings.genAI.getGenerativeModel;
   let promptSeen = '';
   embeddings.genAI.getGenerativeModel = () => ({
@@ -340,6 +344,8 @@ test('the rewrite is given the conversation and its result is what retrieval use
     assert.match(promptSeen, /what about its fees\?/);
   } finally {
     embeddings.genAI.getGenerativeModel = original;
+    if (savedKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = savedKey;
   }
 });
 
