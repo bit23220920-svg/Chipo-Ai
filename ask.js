@@ -2,7 +2,9 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { genAI, embedText, cosineSimilarity } = require('./embeddings.js');
-const { getActiveFaqChunks } = require('./faqs.js');
+const { getActiveFaqChunks, getActiveFaqTexts } = require('./faqs.js');
+const localSearch = require('./localSearch.js');
+const localAnswer = require('./localAnswer.js');
 const studentPortal = require('./studentPortal.js');
 const portalAccess = require('./portalAccess.js');
 const attachmentStore = require('./attachments.js');
@@ -112,6 +114,47 @@ const DEAD_END_PATTERNS = [
   // The same dead end when the office is called "them" instead of by name.
   /(?:contact|reach out|get in touch|speak to|check with|ask)\s*(?:directly |personally |in person |physically )?(?:to |with )?(?:them|the team|that office|those|us|our office)\b/i,
 ];
+
+// The local engine (localSearch.js + localAnswer.js) answers when there is no
+// Gemini key, or when Gemini cannot be reached. It is also what runs when
+// CHIPO_ENGINE=local is set, which is useful for testing without any network.
+// After Gemini fails once (no network, rejected key, long outage), go straight
+// to the local engine for a minute instead of making every student wait
+// through the same failing retries.
+const GEMINI_COOLDOWN_MS = Number(process.env.GEMINI_COOLDOWN_MS) || 60 * 1000;
+let geminiDownUntil = 0;
+
+function markGeminiDown() {
+  geminiDownUntil = Date.now() + GEMINI_COOLDOWN_MS;
+}
+
+function resetGeminiCooldown() {
+  geminiDownUntil = 0;
+}
+
+function hasGeminiKey() {
+  if (String(process.env.CHIPO_ENGINE || '').toLowerCase() === 'local') return false;
+  if (Date.now() < geminiDownUntil) return false;
+  return Boolean(String(process.env.GEMINI_API_KEY || '').trim());
+}
+
+// An error that retrying will not fix: a missing or rejected key, or no
+// network. A busy model (429/503) is still worth waiting for.
+function isPermanentModelError(err) {
+  const text = `${err && err.message ? err.message : err} ${err && err.status ? err.status : ''}`;
+  return /fetch failed|ENOTFOUND|ECONNREFUSED|EAI_AGAIN|API key|API_KEY|\b(?:400|401|403|404)\b|PERMISSION_DENIED|not found/i.test(text);
+}
+
+// Portal text split into small passages so the local search can use it.
+function portalChunksFromContext(portalContext) {
+  if (!portalContext) return [];
+  const pieces = String(portalContext).split(/\n{2,}/).filter((piece) => piece.trim().length > 30);
+  return pieces.map((piece, index) => ({
+    filename: `Student portal (part ${index + 1}/${pieces.length})`,
+    text: piece.trim(),
+    source: 'portal',
+  }));
+}
 
 function looksUncertain(answerText) {
   const text = String(answerText || '');
@@ -290,6 +333,7 @@ function rewriteCampusFollowUp(question, history) {
 async function rewriteStandaloneQuestion(question, history) {
   const { summary, messages } = normalizeConversationHistory(history);
   if (!messages.length || isGreetingOrThanks(question)) return question;
+  if (!hasGeminiKey()) return question; // the local engine reads the history itself
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
@@ -407,35 +451,46 @@ async function askQuestion(question, history = [], options = {}) {
   }
 
   let topChunks = [];
-  if (!skipSearch) {
-    const pdfChunks = await loadContent();
-
-    let faqChunks = [];
+  let engine = hasGeminiKey() ? 'gemini' : 'local';
+  if (!skipSearch && engine === 'gemini') {
     try {
-      faqChunks = await getActiveFaqChunks();
-    } catch (err) {
-      // FAQ table might be empty or the DB might be briefly unavailable —
-      // don't let that take down the whole RAG pipeline, just fall back to
-      // PDF-only retrieval for this question.
-      console.error('Could not load FAQ chunks, continuing with PDF content only:', err.message);
-    }
+      const pdfChunks = await loadContent();
 
-    const chunks = [...faqChunks, ...pdfChunks];
-    const questionEmbedding = await embedText(retrievalQuestion);
-    const scored = chunks.map((chunk) => ({
-      ...chunk,
-      score: cosineSimilarity(questionEmbedding, chunk.embedding),
-    }));
-    scored.sort((a, b) => b.score - a.score);
-    topChunks = scored.slice(0, RAG_TOP_K);
+      let faqChunks = [];
+      try {
+        faqChunks = await getActiveFaqChunks();
+      } catch (err) {
+        // FAQ table might be empty or the DB might be briefly unavailable —
+        // don't let that take down the whole RAG pipeline, just fall back to
+        // PDF-only retrieval for this question.
+        console.error('Could not load FAQ chunks, continuing with PDF content only:', err.message);
+      }
+
+      const chunks = [...faqChunks, ...pdfChunks];
+      const questionEmbedding = await embedText(retrievalQuestion);
+      const scored = chunks.map((chunk) => ({
+        ...chunk,
+        score: cosineSimilarity(questionEmbedding, chunk.embedding),
+      }));
+      scored.sort((a, b) => b.score - a.score);
+      topChunks = scored.slice(0, RAG_TOP_K);
+    } catch (err) {
+      // Gemini is unreachable or rejected the key: answer from the local engine.
+      console.error('Gemini retrieval failed, switching to the local engine:', err.message);
+      markGeminiDown();
+      engine = 'local';
+      topChunks = [];
+    }
   }
   const context = topChunks.map((chunk, index) =>
     `[S${index + 1}] Source: ${chunk.filename}\n${chunk.text}`
   ).join('\n\n---\n\n');
-  const topScore = topChunks.length ? topChunks[0].score : 0;
-  const topSource = topChunks.length ? (topChunks[0].source || 'rag') : 'rag';
+  let topScore = topChunks.length ? topChunks[0].score : 0;
+  let topSource = topChunks.length ? (topChunks[0].source || 'rag') : 'rag';
 
-  console.log("Using context from:", topChunks.map(c => c.filename), `(top score: ${topScore.toFixed(3)})`);
+  if (engine === 'gemini') {
+    console.log("Using context from:", topChunks.map(c => c.filename), `(top score: ${topScore.toFixed(3)})`);
+  }
 
   // Portal context, gated by the session.
   let portalContext = '';
@@ -585,34 +640,75 @@ Chipo's answer:`;
     });
   }
 
-  let result;
-  const maxRetries = 5;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      result = await model.generateContent({ contents: [{ role: 'user', parts }] });
-      break;
-    } catch (err) {
-      // Some models refuse image input. If that happens, answer from the
-      // written parts only rather than failing the whole question.
-      if (imageAttachments.length && attempt === 1) {
-        console.log('  Model could not read the image, retrying with the text only...');
-        parts.length = 1;
-        continue;
+  let result = null;
+  let answerText = '';
+  let usedSourceIds = [];
+
+  if (engine === 'gemini') {
+    const maxRetries = 5;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        result = await model.generateContent({ contents: [{ role: 'user', parts }] });
+        break;
+      } catch (err) {
+        // Some models refuse image input. If that happens, answer from the
+        // written parts only rather than failing the whole question.
+        if (imageAttachments.length && attempt === 1) {
+          console.log('  Model could not read the image, retrying with the text only...');
+          parts.length = 1;
+          continue;
+        }
+        // No key, no network or a rejected key will not fix itself on a retry,
+        // and a model that stays busy is not worth making the student wait for:
+        // either way the local engine answers instead of an error page.
+        if (isPermanentModelError(err) || attempt === maxRetries) {
+          console.error('Gemini could not answer, switching to the local engine:', err.message);
+          markGeminiDown();
+          engine = 'local';
+          break;
+        }
+        const waitTime = attempt * 5000;
+        console.log(`  Model busy, retry ${attempt}/${maxRetries} (waiting ${waitTime / 1000}s)...`);
+        await new Promise(r => setTimeout(r, waitTime));
       }
-      if (attempt === maxRetries) throw err;
-      const waitTime = attempt * 5000;
-      console.log(`  Model busy, retry ${attempt}/${maxRetries} (waiting ${waitTime / 1000}s)...`);
-      await new Promise(r => setTimeout(r, waitTime));
     }
   }
 
-  let answerText = result.response.text();
-  const usedSourceMatch = answerText.match(/(?:^|\n)\s*USED_SOURCES:\s*(.*?)\s*$/i);
-  const usedSourceIds = usedSourceMatch
-    ? (usedSourceMatch[1].match(/\bS\d+\b/gi) || []).map((id) => id.toUpperCase())
-    : [];
-  if (usedSourceMatch) {
-    answerText = answerText.slice(0, usedSourceMatch.index).trim();
+  if (engine === 'gemini') {
+    answerText = result.response.text();
+    const usedSourceMatch = answerText.match(/(?:^|\n)\s*USED_SOURCES:\s*(.*?)\s*$/i);
+    usedSourceIds = usedSourceMatch
+      ? (usedSourceMatch[1].match(/\bS\d+\b/gi) || []).map((id) => id.toUpperCase())
+      : [];
+    if (usedSourceMatch) {
+      answerText = answerText.slice(0, usedSourceMatch.index).trim();
+    }
+  } else {
+    // The local engine: no API key and no network needed.
+    if (skipSearch || portalAccess.isConversational(question)) {
+      answerText = localAnswer.conversationalReply(question);
+      topScore = 0.9;
+    } else {
+      let localChunks = [];
+      try { localChunks = await getActiveFaqTexts(); } catch (err) {
+        console.error('Could not load FAQs for the local engine:', err.message);
+      }
+      try { localChunks = localChunks.concat(await localSearch.loadDocumentChunks()); } catch (err) {
+        console.error('Could not load documents for the local engine:', err.message);
+      }
+      localChunks = localChunks.concat(portalChunksFromContext(portalContext));
+      const local = localAnswer.answerFromChunks({
+        question: retrievalQuestion,
+        turns: historyTurns,
+        chunks: localChunks,
+      });
+      answerText = local.found ? local.answer : localAnswer.NOT_FOUND;
+      topScore = local.confidence;
+      topChunks = local.topChunks.map((chunk) => ({ ...chunk, score: local.confidence }));
+      topSource = topChunks.length ? (topChunks[0].source === 'faq' ? 'faq' : 'rag') : 'rag';
+      usedSourceIds = local.found ? local.usedIndexes.map((i) => `S${i + 1}`) : [];
+    }
+    console.log(`Local engine answered (confidence ${topScore.toFixed(2)}).`);
   }
 
   // On the public site, student numbers coming out of the model are withheld.
@@ -667,6 +763,7 @@ Chipo's answer:`;
 
   return {
     answer: answerText,
+    engine,
     confidence: conversational
       ? 0.9
       : (answeredFromOwnSource ? Math.max(topScore, 0.85) : topScore),
@@ -711,4 +808,6 @@ module.exports = {
   rewriteStandaloneQuestion,
   rewriteCampusFollowUp,
   isGreetingOrThanks,
+  hasGeminiKey,
+  resetGeminiCooldown,
 };

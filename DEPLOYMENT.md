@@ -207,3 +207,14 @@ Department staff see and update tickets assigned to their department only. The a
 - If it reports `Unknown database 'chipo'`, create the `chipo` database in phpMyAdmin first.
 - If it reports `Access denied`, set the correct `MYSQL_USER` and `MYSQL_PASSWORD` in `.env`.
 - The project can also run with Docker Compose, which now uses MariaDB. XAMPP is not used by the Compose setup.
+
+## Answering without a Gemini key (local engine)
+
+Chipo can answer with no API key and no internet. `localSearch.js` ranks the prospectus, policy documents, staff FAQs and portal text (BM25 with stemming, synonyms, typo repair and abbreviations such as "BSc"), and `localAnswer.js` picks the lines that answer the question (fee tables are turned into "Year 1 Semester 1: ZMW ..." sentences).
+
+- Gemini stays the first choice when `GEMINI_API_KEY` is set and reachable.
+- The local engine takes over automatically when the key is missing, Gemini rejects it, or the network is down. After one failure Chipo stays local for `GEMINI_COOLDOWN_MS` (default 60000) so students are not made to wait.
+- `CHIPO_ENGINE=local` forces the local engine, which is handy for testing offline.
+- If the documents do not hold the answer, the reply says so and the question goes to a department, as it does with Gemini.
+- FAQs saved in the admin dashboard while Gemini is unavailable are stored without an embedding; the local engine uses them straight away and Gemini embeds them the next time it is available.
+- The parsed documents are cached in `local-search-cache.json` (ignored by git).
