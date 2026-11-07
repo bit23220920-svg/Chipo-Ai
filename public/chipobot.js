@@ -619,6 +619,38 @@
       col.appendChild(sources);
     }
 
+    if (role === 'bot' && Array.isArray(meta.campusMaps)) {
+      meta.campusMaps.forEach((campus) => {
+        const mapCard = document.createElement('section');
+        mapCard.className = 'campus-map-card';
+
+        const mapTitle = document.createElement('strong');
+        mapTitle.textContent = campus.name;
+        mapCard.appendChild(mapTitle);
+
+        const mapFrame = document.createElement('iframe');
+        mapFrame.title = `Map of ${campus.name}`;
+        mapFrame.loading = 'lazy';
+        mapFrame.referrerPolicy = 'no-referrer-when-downgrade';
+        const mapUrl = new URL(campus.mapUrl);
+        const mapQuery = mapUrl.searchParams.get('query') || campus.name;
+        mapFrame.src = `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=15&output=embed`;
+        mapCard.appendChild(mapFrame);
+
+        const mapLinks = document.createElement('div');
+        mapLinks.className = 'campus-map-links';
+        const directions = document.createElement('a');
+        directions.href = campus.mapUrl;
+        directions.target = '_blank';
+        directions.rel = 'noopener noreferrer';
+        directions.textContent = 'Open campus in Google Maps';
+        mapLinks.appendChild(directions);
+
+        mapCard.appendChild(mapLinks);
+        col.appendChild(mapCard);
+      });
+    }
+
     if (role === 'user' && meta.attachments && meta.attachments.length) {
       const files = document.createElement('div');
       files.className = 'bubble-files';
@@ -637,6 +669,23 @@
       speakBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Listen';
       speakBtn.addEventListener('click', () => toggleSpeak(text, speakBtn));
       col.appendChild(speakBtn);
+
+      const helpfulBtn = document.createElement('button');
+      helpfulBtn.className = 'helpful-btn';
+      helpfulBtn.type = 'button';
+      helpfulBtn.setAttribute('aria-label', 'This answer was helpful');
+      helpfulBtn.setAttribute('aria-pressed', 'false');
+      helpfulBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h3Zm0 0 5-8a3 3 0 0 1 2 3v3h5.2a2 2 0 0 1 2 2.4l-1.6 9a2 2 0 0 1-2 1.6H7"/></svg><span>Helpful</span>';
+      helpfulBtn.addEventListener('click', () => {
+        helpfulBtn.disabled = true;
+        helpfulBtn.setAttribute('aria-pressed', 'true');
+        const thanks = document.createElement('span');
+        thanks.className = 'helpful-thanks';
+        thanks.setAttribute('role', 'status');
+        thanks.textContent = "I'm glad I could help!";
+        helpfulBtn.insertAdjacentElement('afterend', thanks);
+      });
+      col.appendChild(helpfulBtn);
 
       if (meta.needsHuman) {
         if (meta.ticket) {
@@ -806,6 +855,7 @@
           ticket: data.ticket,
           sources: data.sources,
           access: data.access,
+          campusMaps: data.campusMaps,
         });
         // Track this Q&A in history
         conversationHistory.push({ question, answer: data.answer });
@@ -895,6 +945,22 @@
   let currentUtterance = null;
   let currentSpeakBtn = null;
 
+  function preferredSpeechVoice() {
+    const voices = window.speechSynthesis.getVoices();
+    const englishVoices = voices.filter((voice) => /^en(?:-|$)/i.test(voice.lang));
+    const candidates = englishVoices.length ? englishVoices : voices;
+    const localeScores = { 'en-ZA': 4, 'en-GB': 3, 'en-US': 2 };
+
+    return candidates
+      .map((voice) => {
+        const locale = voice.lang.replace('_', '-');
+        const naturalVoice = /\b(?:natural|neural|online)\b/i.test(voice.name) ? 10 : 0;
+        const localeScore = localeScores[locale] || (locale.startsWith('en-') ? 1 : 0);
+        return { voice, score: naturalVoice + localeScore };
+      })
+      .sort((a, b) => b.score - a.score)[0]?.voice;
+  }
+
   function toggleSpeak(text, btn) {
     if (!window.speechSynthesis) {
       micHint.textContent = 'Read-aloud is not supported in this browser.';
@@ -913,7 +979,8 @@
     if (currentSpeakBtn) resetSpeakBtn(currentSpeakBtn);
 
     const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1;
+    utter.voice = preferredSpeechVoice() || null;
+    utter.rate = 0.94;
     utter.onend = () => resetSpeakBtn(btn);
     utter.onerror = () => resetSpeakBtn(btn);
 

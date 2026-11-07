@@ -583,6 +583,31 @@
   .speak-btn.speaking { color: var(--green-bright); }
   .speak-btn svg { flex-shrink: 0; }
 
+  .helpful-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 4px;
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+    align-self: flex-start;
+  }
+
+  .helpful-btn:hover,
+  .helpful-btn[aria-pressed="true"] { color: var(--green-deep); }
+  .helpful-btn:disabled { cursor: default; }
+  .helpful-btn svg { flex-shrink: 0; }
+
+  .helpful-thanks {
+    color: var(--green-deep);
+    font-size: 0.72rem;
+    align-self: flex-start;
+  }
+
   /* ---------- Answer reveal + sources ---------- */
   .bubble-text.is-typing::after {
     content: "";
@@ -630,6 +655,41 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .campus-map-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(420px, 100%);
+    margin-top: 6px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--text-dark);
+    font-size: 0.82rem;
+  }
+
+  .campus-map-card iframe {
+    display: block;
+    width: 100%;
+    height: 220px;
+    border: 0;
+    border-radius: 8px;
+  }
+
+  .campus-map-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .campus-map-links a {
+    color: var(--green-deep);
+    font-weight: 650;
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   .bubble-source::before {

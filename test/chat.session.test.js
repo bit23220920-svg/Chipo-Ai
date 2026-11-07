@@ -127,3 +127,67 @@ test('chat requests reject malformed explicit session IDs', async () => {
     chatlog.loadConversationHistory = originalLoadHistory;
   }
 });
+
+test('campus location questions use document search and return campus map links', async () => {
+  const originalLoadHistory = chatlog.loadConversationHistory;
+  const originalLogMessage = chatlog.logMessage;
+  const originalAsk = ask.askQuestion;
+  let modelCalled = false;
+  let loggedAnswer = '';
+  let historySeen = [];
+
+  chatlog.loadConversationHistory = async () => ({
+    summary: '',
+    messages: [],
+    turns: [{ question: 'How many campuses does UNILUS have?', answer: 'UNILUS has three campuses.' }],
+  });
+  chatlog.logMessage = async ({ answer }) => {
+    loggedAnswer = answer;
+  };
+  ask.askQuestion = async (question, history) => {
+    modelCalled = true;
+    assert.equal(question, 'Where are they located?');
+    historySeen = history.turns;
+    return {
+      answer: 'The campus locations are in the campus locations guide.',
+      confidence: 0.9,
+      needsHuman: false,
+      source: 'rag',
+      sources: ['UNILUS_Campus_Locations.pdf'],
+      departmentId: null,
+      access: 'public',
+    };
+  };
+
+  try {
+    await withServer(async (base) => {
+      const response = await fetch(`${base}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: 'Where are they located?', sessionId: 'test-campus-session-0001' }),
+      });
+      const body = await response.json();
+
+      assert.equal(response.status, 200);
+      assert.equal(body.answer, 'The campus locations are in the campus locations guide.');
+      assert.deepEqual(body.sources, ['UNILUS_Campus_Locations.pdf']);
+      assert.deepEqual(body.campusMaps.map(({ name }) => name), [
+        'Pioneer Campus (Main/Administration)',
+        'Leopards Hill Campus (Law Campus)',
+        'Silverest Campus',
+      ]);
+      assert.equal(
+        body.campusMaps[0].mapUrl,
+        'https://www.google.com/maps/search/?api=1&query=University+of+Lusaka+Pioneer+Campus+Plot+37413+Alick+Nkhata+Road+Mass+Media+Lusaka'
+      );
+      assert.equal(body.needsHuman, false);
+      assert.equal(loggedAnswer, body.answer);
+      assert.equal(modelCalled, true);
+      assert.equal(historySeen.length, 1);
+    });
+  } finally {
+    chatlog.loadConversationHistory = originalLoadHistory;
+    chatlog.logMessage = originalLogMessage;
+    ask.askQuestion = originalAsk;
+  }
+});

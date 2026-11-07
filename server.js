@@ -22,6 +22,32 @@ const { requireStaffAuth, requireAdminStaff, requireStudentAuth, bearerToken } =
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ticketEventClients = new Set();
+const CAMPUSES = [
+  {
+    name: 'Pioneer Campus (Main/Administration)',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=University+of+Lusaka+Pioneer+Campus+Plot+37413+Alick+Nkhata+Road+Mass+Media+Lusaka',
+  },
+  {
+    name: 'Leopards Hill Campus (Law Campus)',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=University+of+Lusaka+Leopards+Hill+Campus+Plot+17986+Leopards+Hill+Road+Lusaka',
+  },
+  {
+    name: 'Silverest Campus',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=University+of+Lusaka+Silverest+Campus+Plot+23072+M+Great+East+Road+Chongwe',
+  },
+];
+
+function isCampusLocationQuestion(question, history = []) {
+  const asksForLocation = /\b(?:where|were|location|address|directions?|located)\b/i.test(question);
+  if (!asksForLocation) return false;
+
+  const namesCampus = /\b(?:school|university|unilus|campuses?|pioneer|leopards hill|silverest)\b/i.test(question);
+  const refersToRecentCampuses = /\b(?:they|them|these|those|it|both|all three)\b/i.test(question)
+    && history.slice(-4).some((turn) =>
+      /\b(?:campuses?|pioneer|leopards hill|silverest)\b/i.test(`${turn.question} ${turn.answer}`)
+    );
+  return namesCampus || refersToRecentCampuses;
+}
 
 /**
  * The student session attached to a request, or null.
@@ -332,6 +358,7 @@ async function chatResponse(req, student) {
   if (Array.isArray(attachmentIds) && attachmentIds.length && !attachments.length) {
     return { status: 400, body: { error: 'The attached file is no longer available. Please attach it again.' } };
   }
+  const locationQuestion = !attachments.length && isCampusLocationQuestion(question, safeHistory);
   const result = ticketRequest
     ? {
         answer: '',
@@ -443,6 +470,7 @@ async function chatResponse(req, student) {
         kind: attachment.kind,
         characters: attachment.characters || 0,
       })),
+      campusMaps: locationQuestion ? CAMPUSES : [],
       ticket: ticket
         ? { id: ticket.id, departmentName: ticket.departmentName, status: ticket.status }
         : null,

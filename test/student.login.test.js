@@ -187,7 +187,7 @@ test('the public site offers one login form for both portal types', async () => 
     const html = await (await fetch(base)).text();
 
     assert.match(html, /<h1>Login<\/h1>/);
-    assert.match(html, /Username or student number/);
+    assert.match(html, /<label for="portalUsername">Username<\/label>/);
     assert.match(html, /fetch\('\/login'/);
     assert.doesNotMatch(html, /Student portal login|Staff login/);
   });
