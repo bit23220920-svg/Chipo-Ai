@@ -463,7 +463,7 @@
   .cell-contact-content { display: flex; flex-direction: column; gap: 3px; }
 
   .badge { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 650; letter-spacing: 0.02em; white-space: normal; }
-  .badge-open { background: rgba(96, 165, 250, 0.18); color: #93c5fd; }
+  .badge-opened { background: rgba(96, 165, 250, 0.18); color: #93c5fd; }
   .badge-in_progress { background: rgba(250, 204, 21, 0.18); color: #fbbf24; }
   .badge-resolved { background: rgba(16, 185, 129, 0.22); color: #34d399; }
   .badge-low_confidence { background: rgba(248, 113, 113, 0.22); color: #fca5a5; }
@@ -638,7 +638,7 @@
         <h2 id="ticketFiltersHeading">Ticket status</h2>
         <div class="filter-row" id="ticketFilters">
           <button class="filter-chip active" data-status="">Active</button>
-          <button class="filter-chip" data-status="open">Open</button>
+          <button class="filter-chip" data-status="opened">Opened</button>
           <button class="filter-chip" data-status="in_progress">In progress</button>
           <button class="filter-chip" data-status="resolved">Resolved</button>
           <button class="btn-cancel" id="refreshTicketsBtn" type="button">Refresh</button>
@@ -1051,7 +1051,7 @@
     }
   }
 
-  const STATUS_LABEL = { open: 'Open', in_progress: 'In progress', resolved: 'Resolved' };
+  const STATUS_LABEL = { opened: 'Opened', in_progress: 'In progress', resolved: 'Resolved' };
       const REASON_LABEL = { low_confidence: 'Low confidence', manual_request: 'Asked for staff', wellbeing: 'Urgent - wellbeing' };
 
   async function loadTickets({ silent = false } = {}) {
@@ -1066,7 +1066,7 @@
       const qs = currentTicketFilter ? ('?status=' + currentTicketFilter) : '';
       const { tickets } = await api('GET', '/admin/tickets' + qs);
 
-      const openCount = tickets.filter((t) => t.status === 'open').length;
+      const openCount = tickets.filter((t) => t.status === 'opened').length;
       const badge = document.getElementById('openTicketBadge');
       if (openCount > 0) { badge.style.display = ''; badge.textContent = openCount; }
       else { badge.style.display = 'none'; }
@@ -1100,8 +1100,8 @@
           '<td class="cell-muted">' + (t.confidence === null ? '—' : t.confidence.toFixed(2)) + '</td>' +
           '<td>' +
             '<select class="status-select" data-id="' + escapeHtml(t.id) + '">' +
-              Object.keys(STATUS_LABEL).map((s) =>
-                '<option value="' + s + '"' + (s === t.status ? ' selected' : '') + '>' + STATUS_LABEL[s] + '</option>'
+              Object.keys(STATUS_LABEL).map((s, i, all) =>
+                '<option value="' + s + '"' + (s === t.status ? ' selected' : '') + (i < all.indexOf(t.status) ? ' disabled' : '') + '>' + STATUS_LABEL[s] + '</option>'
               ).join('') +
             '</select>' +
           '</td>' +
@@ -1121,6 +1121,7 @@
             loadTickets();
           } catch (err) {
             showToast(err.message, true);
+            loadTickets();
           }
         });
       });

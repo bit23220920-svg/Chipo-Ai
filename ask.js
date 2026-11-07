@@ -6,6 +6,7 @@ const { getActiveFaqChunks } = require('./faqs.js');
 const studentPortal = require('./studentPortal.js');
 const portalAccess = require('./portalAccess.js');
 const attachmentStore = require('./attachments.js');
+const { HISTORY_MESSAGE_LIMIT } = require('./conversations.js');
 
 // Bulletproof import to handle Node.js module packaging quirks
 const pdfParseModule = require('pdf-parse');
@@ -32,6 +33,11 @@ if (typeof pdfParseModule === 'function') {
 // gemini-embedding-001 for a genuinely relevant chunk tends to sit well above
 // this; tune via .env if that doesn't match what you see in practice.
 const ESCALATION_THRESHOLD = Number(process.env.ESCALATION_THRESHOLD) || 0.55;
+
+// How many retrieved chunks are handed to the model. Two keeps answers tight;
+// raise RAG_TOP_K in .env if answers about long tables (fees by programme)
+// keep missing a row that sits in the next chunk.
+const RAG_TOP_K = Math.min(Math.max(parseInt(process.env.RAG_TOP_K, 10) || 2, 1), 8);
 
 // Second signal, independent of the similarity score: Chipo's own system
 // prompt tells it to say so plainly when it doesn't know something, so we
@@ -250,7 +256,7 @@ function isGreetingOrThanks(question) {
 function formatHistoryForPrompt(history) {
   const { summary, messages } = normalizeConversationHistory(history);
   const summaryText = summary ? `Earlier conversation summary:\n${summary}\n\n` : '';
-  const recent = messages.slice(-12);
+  const recent = messages.slice(-HISTORY_MESSAGE_LIMIT);
   const messageText = recent
     .map((message) => `${message.role === 'user' ? 'Student' : 'Assistant'}: ${message.content}`)
     .join('\n');
@@ -285,12 +291,20 @@ async function rewriteStandaloneQuestion(question, history) {
   const { summary, messages } = normalizeConversationHistory(history);
   if (!messages.length || isGreetingOrThanks(question)) return question;
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
-  const result = await model.generateContent(
-    `Rewrite the student's latest message as one standalone search question using the conversation history only to resolve references such as "they", "it", "that one", "and the fees", or "tell me more". Do not answer it or add facts. If it is already standalone, repeat it unchanged. Return only the rewritten question.\n\n${formatHistoryForPrompt({ summary, messages })}Latest message: ${question}`
-  );
-  const rewritten = result.response.text().trim().replace(/^["'“]|["'”]$/g, '').trim();
-  return rewritten ? rewritten.slice(0, 1000) : question;
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+    const result = await model.generateContent(
+      `Rewrite the student's latest message as one standalone search question using the conversation history only to resolve references such as "they", "it", "that one", "and the fees", or "tell me more". Do not answer it or add facts. If it is already standalone, repeat it unchanged. Return only the rewritten question.\n\n${formatHistoryForPrompt({ summary, messages })}Latest message: ${question}`
+    );
+    const rewritten = result.response.text().trim().replace(/^["'“]|["'”]$/g, '').trim();
+    return rewritten ? rewritten.slice(0, 1000) : question;
+  } catch (err) {
+    // The rewrite only makes retrieval better. If the model is busy or
+    // unreachable, search with the question as it was typed instead of
+    // failing the whole answer.
+    console.error('Could not rewrite the question, searching with it as typed:', err.message);
+    return question;
+  }
 }
 
 async function summarizeConversation(previousSummary, messages) {
@@ -413,7 +427,7 @@ async function askQuestion(question, history = [], options = {}) {
       score: cosineSimilarity(questionEmbedding, chunk.embedding),
     }));
     scored.sort((a, b) => b.score - a.score);
-    topChunks = scored.slice(0, 2);
+    topChunks = scored.slice(0, RAG_TOP_K);
   }
   const context = topChunks.map((chunk, index) =>
     `[S${index + 1}] Source: ${chunk.filename}\n${chunk.text}`
@@ -527,6 +541,7 @@ When a question needs a person:
   - Resolve references such as "they", "it", "that one", "and the fees", and "tell me more" from the entire conversation history. Continue answering the same subject unless the student clearly changes topic.
   - Money: use exact figures from the portal and never estimate a balance. The 50% down payment rule applies to tuition fees, not to the outstanding balance: explain the rule, then say Accounts will confirm the exact amount. List payment methods, deadlines or penalties only when the information below holds them; otherwise say you are not sure and offer a ticket to Accounts.
 - Never invent a reference number, a response time, or a claim that the office has already been contacted.
+- Never state or guess the status of a ticket. Ticket status comes from the system's own records, not from you. If you are asked about one, say you cannot see it from here and the student can ask "where is my ticket?" to get the live status.
 - If someone asks to be put through to a person, do it without arguing.
 
 Which office:

@@ -212,10 +212,32 @@
       localStorage.removeItem(STUDENT_TOKEN_KEY);
     } catch (err) { /* private browsing — the session just won't persist */ }
     renderAccessBadge();
+    if (session.token && scope === 'portal') restoreServerChat();
   }
 
   function clearSession() {
+    const hadSession = !!session.token;
     setSession(null, null);
+    if (hadSession) resetChatView();
+  }
+
+  // Signed-in students: the server keeps the chat, so a refresh brings it back.
+  function resetChatView() {
+    chatInner.innerHTML = '';
+    chatInner.appendChild(welcome);
+    conversationHistory = [];
+    try { localStorage.removeItem('conversationHistory'); } catch (err) { /* ignore */ }
+  }
+
+  async function restoreServerChat() {
+    const tokenAtStart = session.token;
+    try {
+      const response = await fetch('/student/chat', { headers: { Authorization: 'Bearer ' + tokenAtStart } });
+      if (!response.ok || session.token !== tokenAtStart) return;
+      const { messages } = await response.json();
+      resetChatView();
+      (messages || []).forEach((m) => addMessage(m.role === 'user' ? 'user' : 'bot', m.content, { instant: true }));
+    } catch (err) { /* the chat just starts empty */ }
   }
 
   /**
@@ -382,7 +404,12 @@
   sidebarScrim.addEventListener('click', () => toggleSidebar(false));
 
   newChatBtn.addEventListener('click', () => {
-    saveCurrentConversation();
+    if (scope === 'portal' && session.token) {
+      // Start a fresh server-side conversation; the old one stays stored.
+      fetch('/student/chat/new', { method: 'POST', headers: { Authorization: 'Bearer ' + session.token } }).catch(() => {});
+    } else {
+      saveCurrentConversation();
+    }
     chatInner.innerHTML = '';
     chatInner.appendChild(welcome);
     questionEl.value = '';
@@ -599,7 +626,8 @@
     if (role === 'user') {
       bubbleText.textContent = text;
     } else {
-      typeOut(bubbleText, text);
+      if (meta.instant) bubbleText.textContent = text;
+      else typeOut(bubbleText, text);
     }
 
     if (role === 'bot' && meta.sources && meta.sources.length) {

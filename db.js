@@ -86,12 +86,103 @@ async function query(text, params = []) {
   return { rows: [], rowCount: result.affectedRows || 0, insertId: result.insertId };
 }
 
+// Turns "$1, $2" placeholders into "?" and orders the values to match.
+function translatePlaceholders(text, params = []) {
+  const values = [];
+  const sql = text.replace(/\$(\d+)/g, (_, position) => {
+    values.push(params[Number(position) - 1]);
+    return '?';
+  });
+  return { sql, values };
+}
+
+// Splits a schema file into single statements. The MySQL pool is not created
+// with multipleStatements (on purpose: it would widen the damage of any
+// injection bug), so a whole schema file cannot be sent in one call.
+function splitStatements(text) {
+  return text
+    .split('\n')
+    .filter((line) => !/^\s*--/.test(line))
+    .join('\n')
+    .split(';')
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+}
+
 async function executeMultiple(text) {
   if (useTurso) {
     const client = await getTursoClient();
     return client.executeMultiple(text);
   }
-  return mysqlPool.query(text);
+  for (const statement of splitStatements(text)) {
+    await mysqlPool.query(statement);
+  }
+}
+
+/**
+ * Run several statements as one unit: all of them are saved, or none are.
+ *
+ *   await transaction(async (tx) => {
+ *     await tx.query('UPDATE ...', [..]);
+ *     await tx.query('INSERT ...', [..]);
+ *   });
+ *
+ * `tx.query` takes the same "$1" placeholders and returns the same
+ * { rows, rowCount, insertId } shape as query(). Throwing inside the callback
+ * rolls everything back, and the error is passed on to the caller.
+ */
+async function transaction(work) {
+  if (useTurso) {
+    const client = await getTursoClient();
+    const tx = await client.transaction('write');
+    const handle = {
+      query: async (text, params = []) => {
+        const { sql, values } = translatePlaceholders(text, params);
+        const args = values.map((value) => (typeof value === 'boolean' ? Number(value) : value));
+        try {
+          const result = await tx.execute({ sql, args });
+          return {
+            rows: result.rows,
+            rowCount: Number(result.rowsAffected || 0),
+            insertId: result.lastInsertRowid,
+          };
+        } catch (error) {
+          normalizeSqliteError(error);
+        }
+      },
+    };
+    try {
+      const outcome = await work(handle);
+      await tx.commit();
+      return outcome;
+    } catch (error) {
+      try { await tx.rollback(); } catch (rollbackError) { /* already closed */ }
+      throw error;
+    } finally {
+      tx.close();
+    }
+  }
+
+  const connection = await mysqlPool.getConnection();
+  const handle = {
+    query: async (text, params = []) => {
+      const { sql, values } = translatePlaceholders(text, params);
+      const [result] = await connection.execute(sql, values);
+      if (Array.isArray(result)) return { rows: result, rowCount: result.length };
+      return { rows: [], rowCount: result.affectedRows || 0, insertId: result.insertId };
+    },
+  };
+  try {
+    await connection.beginTransaction();
+    const outcome = await work(handle);
+    await connection.commit();
+    return outcome;
+  } catch (error) {
+    try { await connection.rollback(); } catch (rollbackError) { /* connection lost */ }
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 const pool = useTurso
@@ -110,4 +201,4 @@ const pool = useTurso
     }
   : mysqlPool;
 
-module.exports = { pool, query, executeMultiple, useTurso };
+module.exports = { pool, query, executeMultiple, transaction, useTurso };

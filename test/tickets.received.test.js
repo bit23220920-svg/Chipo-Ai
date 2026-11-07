@@ -133,7 +133,7 @@ test('a question Chipo cannot answer arrives with the department as a ticket', a
       assert.equal(received.email, 'john.sichula@student.unilus.edu.zm');
       assert.equal(received.phone, '+260 977 000 000');
       assert.equal(received.question, 'How do I apply for hostel accommodation?');
-      assert.equal(received.status, 'open');
+      assert.equal(received.status, 'opened');
       assert.equal(received.reason, 'low_confidence');
       assert.equal(received.departmentName, 'Student Affairs');
     });
@@ -187,7 +187,7 @@ test('asking for a person arrives with the department as a ticket', async () => 
       assert.equal(received.email, 'john.sichula@student.unilus.edu.zm');
       assert.equal(received.question, 'I need to open a support ticket about my fee payment');
       assert.equal(received.reason, 'manual_request');
-      assert.equal(received.status, 'open');
+      assert.equal(received.status, 'opened');
       assert.equal(received.departmentName, 'Accounts');
     });
   } finally {

@@ -5,9 +5,27 @@
 // shapes match what server.js already expects.
 
 const crypto = require('crypto');
-const { query } = require('./db.js');
+const { query, transaction } = require('./db.js');
 
-const VALID_STATUSES = ['open', 'in_progress', 'resolved'];
+// A ticket only ever moves forward through these, in this order.
+const VALID_STATUSES = ['opened', 'in_progress', 'resolved'];
+const STATUS_LABELS = { opened: 'Opened', in_progress: 'In Progress', resolved: 'Resolved' };
+
+// Older rows (and older browser tabs) say "open"; it means "opened".
+function normalizeStatus(value) {
+  const status = String(value || '').trim().toLowerCase();
+  return status === 'open' ? 'opened' : status;
+}
+
+function statusLabel(status) {
+  return STATUS_LABELS[normalizeStatus(status)] || String(status);
+}
+
+// Forward only: opened -> in_progress -> resolved. Skipping ahead (opened ->
+// resolved) is still a forward move; going back or repeating a status is not.
+function isForwardMove(from, to) {
+  return VALID_STATUSES.indexOf(normalizeStatus(to)) > VALID_STATUSES.indexOf(normalizeStatus(from));
+}
 const VALID_REASONS = ['low_confidence', 'manual_request', 'wellbeing'];
 
 // Short, human-readable reference the student can quote later,
@@ -30,7 +48,9 @@ function rowToTicket(row) {
     reason: row.reason,
     departmentId: row.department_id,
     departmentName: row.department_name || null,
-    status: row.status,
+    studentId: row.student_id || null,
+    subject: row.subject || null,
+    status: normalizeStatus(row.status),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -70,7 +90,7 @@ function normalizeContact({ name, email, phone } = {}) {
  * @param {'low_confidence'|'manual_request'|'wellbeing'} [fields.reason]
  * @param {string} [fields.departmentId] - Routed department, if known.
  */
-async function createTicket({ name, email, phone, question, answer, confidence, reason, departmentId, conversationSummary } = {}) {
+async function createTicket({ name, email, phone, question, answer, confidence, reason, departmentId, conversationSummary, studentId, subject } = {}) {
   if (!question || !question.trim()) throw badRequest('A question is required to open a ticket.');
   if (question.trim().length > 10000) throw badRequest('Question must be 10,000 characters or fewer.');
   if (conversationSummary !== undefined && conversationSummary !== null && typeof conversationSummary !== 'string') {
@@ -84,9 +104,13 @@ async function createTicket({ name, email, phone, question, answer, confidence, 
   const id = generateReference();
   const safeReason = VALID_REASONS.includes(reason) ? reason : 'manual_request';
 
+  // One line that says what the ticket is about, for lists and notifications.
+  const safeSubject = (typeof subject === 'string' && subject.trim() ? subject : question)
+    .replace(/\s+/g, ' ').trim().slice(0, 120);
+
   await query(
-    `INSERT INTO tickets (id, name, email, phone, question, conversation_summary, last_answer, confidence, reason, department_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    `INSERT INTO tickets (id, name, email, phone, question, conversation_summary, last_answer, confidence, reason, department_id, student_id, subject, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
     [
       id,
       contact.name,
@@ -98,6 +122,9 @@ async function createTicket({ name, email, phone, question, answer, confidence, 
       typeof confidence === 'number' ? confidence : null,
       safeReason,
       departmentId || null,
+      studentId || null,
+      safeSubject,
+      'opened',
     ]
   );
   return getTicket(id);
@@ -116,7 +143,13 @@ async function listTickets({ status, departmentId, isAdmin = true } = {}) {
   const filters = [];
   const params = [];
   if (status) {
-    filters.push(`tickets.status = $${params.push(status)}`);
+    // Rows written before the rename may still say "open".
+    const wanted = normalizeStatus(status);
+    if (wanted === 'opened') {
+      filters.push(`tickets.status IN ($${params.push('opened')}, $${params.push('open')})`);
+    } else {
+      filters.push(`tickets.status = $${params.push(wanted)}`);
+    }
   } else {
     filters.push(`tickets.status <> 'resolved'`);
   }
@@ -149,19 +182,137 @@ async function getTicket(id, departmentId = null) {
   return rows[0] ? rowToTicket(rows[0]) : null;
 }
 
-async function updateTicketStatus(id, status, departmentId = null, isAdmin = true) {
-  if (!VALID_STATUSES.includes(status)) {
-    throw badRequest(`Invalid status "${status}". Must be one of: ${VALID_STATUSES.join(', ')}`);
-  }
-  const params = [id, status];
-  const departmentFilter = isAdmin
-    ? ''
-    : departmentId ? ` AND department_id = $${params.push(departmentId)}` : ' AND 1 = 0';
-  await query(
-    `UPDATE tickets SET status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1${departmentFilter}`,
-    params
-  );
-  return getTicket(id, departmentId);
+function conflict(message) {
+  const err = new Error(message);
+  err.statusCode = 409;
+  return err;
 }
 
-module.exports = { createTicket, assignUnassignedTickets, listTickets, getTicket, updateTicketStatus, VALID_STATUSES };
+const TICKET_SELECT = `SELECT tickets.*, departments.name AS department_name
+     FROM tickets LEFT JOIN departments ON departments.id = tickets.department_id`;
+
+/**
+ * Move a ticket to its next status.
+ *
+ * In ONE transaction this updates the ticket, writes a ticket_events row and,
+ * when the ticket belongs to a student, writes that student's notification.
+ * If any of the three fails, none of them are saved.
+ *
+ * @param {object} fields
+ * @param {string} fields.ticketId
+ * @param {string} fields.status  - 'in_progress' or 'resolved' ('opened' only
+ *                                  ever happens when the ticket is created).
+ * @param {string} [fields.note]  - Optional note stored on the event.
+ * @param {{id: string, departmentId: string|null, isAdmin: boolean}} fields.staff
+ *        The staff member making the change (read fresh from the database).
+ * @returns {Promise<object|null>} the updated ticket, or null when there is no
+ *          such ticket *for this staff member* - staff of another department get
+ *          the same answer as for a ticket that does not exist.
+ */
+async function changeStatus({ ticketId, status, note, staff } = {}) {
+  const next = normalizeStatus(status);
+  if (!VALID_STATUSES.includes(next)) {
+    throw badRequest(`Invalid status "${status}". Must be one of: ${VALID_STATUSES.join(', ')}`);
+  }
+  const cleanNote = typeof note === 'string' ? note.trim() : '';
+  if (cleanNote.length > 1000) throw badRequest('A note must be 1,000 characters or fewer.');
+  if (!staff || !staff.id) throw badRequest('A staff member is required to change a ticket.');
+
+  return transaction(async (tx) => {
+    const { rows } = await tx.query(`${TICKET_SELECT} WHERE tickets.id = $1`, [ticketId]);
+    const row = rows[0];
+    const mayAct = row && (staff.isAdmin || (staff.departmentId && row.department_id === staff.departmentId));
+    if (!mayAct) return null;
+
+    const current = normalizeStatus(row.status);
+    if (!isForwardMove(current, next)) {
+      throw conflict(
+        current === next
+          ? `This ticket is already ${statusLabel(current)}.`
+          : `A ticket can only move forward (Opened, then In Progress, then Resolved). This one is already ${statusLabel(current)}, so it cannot go back to ${statusLabel(next)}.`
+      );
+    }
+
+    // Compare-and-swap on the status we just read, so two staff members acting
+    // at the same moment cannot both "win".
+    const updated = await tx.query(
+      `UPDATE tickets SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND status = $3`,
+      [next, ticketId, row.status]
+    );
+    if (updated.rowCount !== 1) {
+      throw conflict('Someone else just changed this ticket. Refresh the list and try again.');
+    }
+
+    await tx.query(
+      `INSERT INTO ticket_events (ticket_id, status, note, staff_id) VALUES ($1, $2, $3, $4)`,
+      [ticketId, next, cleanNote || null, staff.id]
+    );
+
+    if (row.student_id) {
+      const office = row.department_name ? `${row.department_name} ticket` : 'ticket';
+      await tx.query(
+        `INSERT INTO notifications (student_id, ticket_id, message) VALUES ($1, $2, $3)`,
+        [row.student_id, ticketId, `Your ${office} ${ticketId} is now ${statusLabel(next)}.`]
+      );
+    }
+
+    const fresh = await tx.query(`${TICKET_SELECT} WHERE tickets.id = $1`, [ticketId]);
+    return rowToTicket(fresh.rows[0]);
+  });
+}
+
+/** The tickets that belong to one student, newest first. Never anyone else's. */
+async function listStudentTickets(studentId, { limit = 50 } = {}) {
+  if (!studentId) return [];
+  const cap = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+  const { rows } = await query(
+    `${TICKET_SELECT} WHERE tickets.student_id = $1 ORDER BY tickets.created_at DESC, tickets.id DESC LIMIT ${cap}`,
+    [studentId]
+  );
+  return rows.map(rowToTicket);
+}
+
+/** One ticket by reference, but only if it belongs to this student. */
+async function getStudentTicket(studentId, id) {
+  if (!studentId || !id) return null;
+  const { rows } = await query(
+    `${TICKET_SELECT} WHERE tickets.id = $1 AND tickets.student_id = $2`,
+    [id, studentId]
+  );
+  return rows[0] ? rowToTicket(rows[0]) : null;
+}
+
+/** The history of a ticket's status changes, oldest first. */
+async function listTicketEvents(ticketId) {
+  const { rows } = await query(
+    `SELECT ticket_events.*, staff_users.username AS staff_username
+     FROM ticket_events LEFT JOIN staff_users ON staff_users.id = ticket_events.staff_id
+     WHERE ticket_events.ticket_id = $1 ORDER BY ticket_events.id ASC`,
+    [ticketId]
+  );
+  return rows.map((row) => ({
+    id: Number(row.id),
+    ticketId: row.ticket_id,
+    status: normalizeStatus(row.status),
+    note: row.note || null,
+    staffId: row.staff_id || null,
+    staffUsername: row.staff_username || null,
+    createdAt: row.created_at,
+  }));
+}
+
+module.exports = {
+  createTicket,
+  assignUnassignedTickets,
+  listTickets,
+  getTicket,
+  changeStatus,
+  listStudentTickets,
+  getStudentTicket,
+  listTicketEvents,
+  normalizeStatus,
+  statusLabel,
+  isForwardMove,
+  VALID_STATUSES,
+  STATUS_LABELS,
+};

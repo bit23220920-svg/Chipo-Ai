@@ -12,12 +12,14 @@ const studentAuth = require('./studentAuth.js');
 const studentPortal = require('./studentPortal.js');
 const portalAccess = require('./portalAccess.js');
 const chatlog = require('./chatlog.js');
+const conversations = require('./conversations.js');
+const notifications = require('./notifications.js');
 const systemLog = require('./systemLog.js');
 const attachmentStore = require('./attachments.js');
 const fileReader = require('./fileReader.js');
 const { isTicketRequest, resolveTicketDepartment } = require('./ticketRouting.js');
 const { pool, useTurso } = require('./db.js');
-const { requireStaffAuth, requireAdminStaff, requireStudentAuth, bearerToken } = require('./middleware.js');
+const { requireStaffAuth, requireAdminStaff, requireStudentAuth, requireActiveStudent, bearerToken } = require('./middleware.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -231,11 +233,72 @@ function summarizeTicketHandover(turns, question, answer, earlierSummary = '') {
   return lines.join('\n').slice(0, 6000);
 }
 
+// Ways of asking about a ticket that is already open. They are specific on
+// purpose: "where do I open a ticket?" is a how-to question, not a status check.
+const OWN_TICKET = '(?:my|the|that|our)\\s+(?:\\w+\\s+){0,2}tickets?';
+const TICKET_STATUS_PATTERNS = [
+  new RegExp(`\\bwhere(?:'?s| is| are)\\s+${OWN_TICKET}\\b`, 'i'),
+  new RegExp(`\\b(?:has|have|is|are|did|was|were|will)\\s+${OWN_TICKET}\\s+(?:been\\s+)?(?:resolved|sorted|handled|closed|answered|picked up|opened|looked at|updated|done|fixed|seen|received|moved|solved)\\b`, 'i'),
+  new RegExp(`\\b(?:any|no)\\s+(?:news|update|updates|word|reply|response|movement|progress)\\s+(?:on|about|with|for|regarding)\\s+${OWN_TICKET}\\b`, 'i'),
+  new RegExp(`\\b${OWN_TICKET}\\s+(?:status|progress|update|updates)\\b`, 'i'),
+  new RegExp(`\\b(?:status|progress|update|updates|news)\\s+(?:of|on|for|with|about)\\s+${OWN_TICKET}\\b`, 'i'),
+  new RegExp(`\\b(?:what(?:'?s| is)|how(?:'?s| is))\\s+(?:happening|going|up)\\s+(?:with|on)\\s+${OWN_TICKET}\\b`, 'i'),
+  /\b(?:show|list|see|view|display|check)\s+(?:me\s+)?(?:all\s+)?(?:of\s+)?(?:my|the)\s+(?:\w+\s+){0,2}tickets?\b/i,
+  /^\s*(?:my\s+)?tickets?\s*[?.!]*\s*$/i,
+];
+
 function parseTicketStatusRequest(question) {
   const reference = question.match(/\b(TCK-[A-F0-9]{16})\b/i);
-  if (!/\b(?:ticket|reference)\b/i.test(question) && !reference) return null;
-  if (!/\b(?:status|track(?:ing)?|progress|check|update)\b/i.test(question)) return null;
+  const asksAboutOne = TICKET_STATUS_PATTERNS.some((pattern) => pattern.test(question));
+  const mentionsOne = /\b(?:ticket|reference)\b/i.test(question) || Boolean(reference);
+  const asksForStatus = /\b(?:status|track(?:ing)?|progress|check|update)\b/i.test(question);
+  if (!asksAboutOne && !(mentionsOne && asksForStatus)) return null;
   return { reference: reference ? reference[1].toUpperCase() : null };
+}
+
+// One short line per ticket, built only from what the database holds.
+function describeTicket(ticket) {
+  const office = ticket.departmentName ? ` (${ticket.departmentName})` : '';
+  const subject = ticket.subject ? ` - ${ticket.subject}` : '';
+  return `${ticket.id}${office}: ${tickets.statusLabel(ticket.status)}${subject}. Last updated ${ticket.updatedAt}.`;
+}
+
+/**
+ * The reply to "where is my ticket?" for a signed-in student.
+ *
+ * It is written from the student's own rows in the database - the model is
+ * never asked, so it cannot guess a status. Only tickets that belong to this
+ * student are ever looked at; a reference that belongs to someone else gets
+ * exactly the same answer as one that does not exist.
+ */
+async function studentTicketAnswer(student, reference) {
+  if (reference) {
+    const ticket = await tickets.getStudentTicket(student.id, reference);
+    if (!ticket) {
+      return {
+        answer: `I couldn't find a ticket with reference ${reference} on your account. Check the reference, or ask me "where is my ticket?" to see all of yours.`,
+        ticket: null,
+      };
+    }
+    return {
+      answer: `Your ${ticket.departmentName || 'university'} ticket ${ticket.id} is currently ${tickets.statusLabel(ticket.status)}. Last updated: ${ticket.updatedAt}.`,
+      ticket,
+    };
+  }
+
+  const own = await tickets.listStudentTickets(student.id, { limit: 6 });
+  if (!own.length) {
+    return { answer: "You don't have any tickets yet. If you'd like a university office to look into something, just ask me to open one.", ticket: null };
+  }
+  if (own.length === 1) {
+    return { answer: `You have one ticket. ${describeTicket(own[0])}`, ticket: own[0] };
+  }
+  const shown = own.slice(0, 5);
+  const more = own.length > shown.length ? '\nAsk me about a reference to see an older one.' : '';
+  return {
+    answer: `Here are your most recent tickets:\n${shown.map((ticket) => `- ${describeTicket(ticket)}`).join('\n')}${more}`,
+    ticket: shown[0],
+  };
 }
 
 /**
@@ -246,7 +309,7 @@ function parseTicketStatusRequest(question) {
  *          contact: {name?: string, email?: string, phone?: string},
  *          routingContext?: string[], conversationSummary?: string}} fields
  */
-async function routeAndCreateTicket({ question, answer, confidence, reason, departmentId, contact, routingContext = [], conversationSummary, forceDepartmentId = null }) {
+async function routeAndCreateTicket({ question, answer, confidence, reason, departmentId, contact, routingContext = [], conversationSummary, forceDepartmentId = null, studentId = null }) {
   const availableDepartments = await departments.listDepartments();
   const preferredDepartmentId = availableDepartments.some((department) => department.id === departmentId)
     ? departmentId
@@ -265,6 +328,7 @@ async function routeAndCreateTicket({ question, answer, confidence, reason, depa
     reason,
     departmentId: routedDepartmentId,
     conversationSummary,
+    studentId,
   });
 
   notifyTicketChange();
@@ -303,10 +367,48 @@ async function chatResponse(req, student) {
       (typeof providedSessionId !== 'string' || !/^[a-zA-Z0-9-]{16,64}$/.test(providedSessionId))) {
     return { status: 400, body: { error: 'A valid chat session ID is required.' } };
   }
-  const sessionId = providedSessionId || crypto.randomUUID();
+  let sessionId = providedSessionId || crypto.randomUUID();
 
-  const conversation = await chatlog.loadConversationHistory(sessionId, ask.summarizeConversation);
+  // A signed-in student's memory belongs to that student: the server finds
+  // their current conversation itself (the browser never names one) and loads
+  // its last 15 messages. The public site keeps its per-tab session history.
+  let memory = null;
+  let conversation;
+  if (student) {
+    try {
+      const current = await conversations.getOrCreateCurrent(student.id);
+      const recent = await conversations.loadRecent(current.id, student.id, conversations.HISTORY_MESSAGE_LIMIT);
+      conversation = conversations.toHistory(recent);
+      memory = { conversationId: current.id };
+      sessionId = `student-chat-${current.id}`;
+    } catch (err) {
+      // Memory is a convenience, not a gate: if it cannot be reached (for
+      // example "node migrate.js" has not been run since this feature was
+      // added) the student still gets answers, just without earlier messages.
+      // It never falls back to another chat's history.
+      console.error('Chat memory is unavailable; answering without earlier messages. Has "node migrate.js" been run?', err.message);
+      conversation = conversations.toHistory([]);
+    }
+  } else {
+    conversation = await chatlog.loadConversationHistory(sessionId, ask.summarizeConversation);
+  }
   const safeHistory = conversation.turns;
+
+  // Keep the exchange in the student's conversation. If saving fails the
+  // student still gets their answer; the failure is logged.
+  const remember = async (answerText) => {
+    if (!memory) return;
+    try {
+      await conversations.saveExchange({
+        conversationId: memory.conversationId,
+        studentId: student.id,
+        question,
+        answer: answerText,
+      });
+    } catch (err) {
+      console.error('Could not save the chat messages:', err.message);
+    }
+  };
 
   console.log(`\nReceived question: "${question}" (session ${sessionId}, ${conversation.messages.length} recent messages)`);
 
@@ -317,14 +419,22 @@ async function chatResponse(req, student) {
   if (statusRequest) {
     let answer;
     let ticket = null;
-    if (!statusRequest.reference) {
-      answer = 'Please send the ticket reference (for example, TCK-0123456789ABCDEF) and I can check its status.';
+    if (student) {
+      // Signed in: answer from this student's own tickets, whatever the
+      // question says. The model is not involved.
+      ({ answer, ticket } = await studentTicketAnswer(student, statusRequest.reference));
+    } else if (!statusRequest.reference) {
+      answer = 'Please send the ticket reference (for example, TCK-0123456789ABCDEF) and I can check its status. If you opened it from your student account, sign in to the student portal and ask me there.';
     } else {
       ticket = await tickets.getTicket(statusRequest.reference);
-      if (!ticket) {
+      if (ticket && ticket.studentId) {
+        // A ticket tied to a student account is only visible to that student.
+        answer = 'That ticket belongs to a student account. Please sign in to the student portal and ask me there to see its status.';
+        ticket = null;
+      } else if (!ticket) {
         answer = `I couldn't find a ticket with reference ${statusRequest.reference}. Check the reference and try again.`;
       } else {
-        const statusLabel = { open: 'Open', in_progress: 'In progress', resolved: 'Resolved' }[ticket.status] || ticket.status;
+        const statusLabel = tickets.statusLabel(ticket.status);
         const department = ticket.departmentName ? ` It is assigned to ${ticket.departmentName}.` : '';
         answer = `Ticket ${ticket.id} is currently ${statusLabel}.${department} Last updated: ${ticket.updatedAt}.`;
       }
@@ -339,6 +449,7 @@ async function chatResponse(req, student) {
       studentId: student ? student.id : null,
       studentNumber: student ? student.studentNumber : null,
     });
+    await remember(answer);
     return {
       status: 200,
       body: {
@@ -411,6 +522,7 @@ async function chatResponse(req, student) {
           reason: wellbeing ? 'wellbeing' : (ticketRequest ? 'manual_request' : 'low_confidence'),
           departmentId: result.departmentId,
           forceDepartmentId: forcedDepartmentId,
+          studentId: student ? student.id : null,
           contact,
           routingContext: safeHistory.map((turn) => turn.question.slice(0, 1000)),
           conversationSummary: summarizeTicketHandover(safeHistory, question, result.answer, conversation.summary),
@@ -455,6 +567,7 @@ async function chatResponse(req, student) {
     studentId: student ? student.id : null,
     studentNumber: student ? student.studentNumber : null,
   });
+  await remember(answer);
 
   return {
     status: 200,
@@ -564,7 +677,9 @@ app.post('/tickets', handle(async (req, res) => {
 // parcel tracking number works.
 app.get('/tickets/:id', handle(async (req, res) => {
   const ticket = await tickets.getTicket(req.params.id);
-  if (!ticket) return res.status(404).json({ error: 'No ticket found with that reference.' });
+  // A ticket tied to a student account is only shown to that student, inside
+  // the portal - here it looks exactly like a ticket that does not exist.
+  if (!ticket || ticket.studentId) return res.status(404).json({ error: 'No ticket found with that reference.' });
   res.json({ ticket: { id: ticket.id, status: ticket.status, createdAt: ticket.createdAt, updatedAt: ticket.updatedAt } });
 }));
 
@@ -668,6 +783,64 @@ app.post('/student/password', requireStudentAuth, handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ---- Student chat memory
+//
+// Every route below uses requireActiveStudent and works on req.studentId - the
+// id from the verified login - so a student can only ever reach their own
+// messages, tickets and notifications. None of them accept an id to look up.
+
+// The student's current conversation, so the chat survives a page refresh.
+app.get('/student/chat', requireActiveStudent, handle(async (req, res) => {
+  const current = await conversations.getOrCreateCurrent(req.studentId);
+  const messages = await conversations.loadRecent(current.id, req.studentId, 50);
+  res.json({
+    messages: messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt,
+    })),
+  });
+}));
+
+// "New chat": the next question starts a fresh conversation with no memory of
+// the old one. The old messages stay saved.
+app.post('/student/chat/new', requireActiveStudent, handle(async (req, res) => {
+  await conversations.startNew(req.studentId);
+  res.json({ ok: true });
+}));
+
+// ---- Student tickets and notifications
+
+app.get('/student/tickets', requireActiveStudent, handle(async (req, res) => {
+  const own = await tickets.listStudentTickets(req.studentId);
+  res.json({
+    tickets: own.map((ticket) => ({
+      id: ticket.id,
+      subject: ticket.subject || ticket.question,
+      departmentName: ticket.departmentName,
+      status: ticket.status,
+      statusLabel: tickets.statusLabel(ticket.status),
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt,
+    })),
+  });
+}));
+
+app.get('/student/notifications', requireActiveStudent, handle(async (req, res) => {
+  res.json(await notifications.listForStudent(req.studentId, { limit: req.query.limit }));
+}));
+
+// Opening the bell marks everything as read. A body of { ids: [...] } marks just
+// those; ids that are not this student's are ignored.
+app.post('/student/notifications/read', requireActiveStudent, handle(async (req, res) => {
+  const ids = req.body && req.body.ids;
+  const marked = Array.isArray(ids)
+    ? await notifications.markRead(req.studentId, ids)
+    : await notifications.markAllRead(req.studentId);
+  res.json({ marked, unreadCount: await notifications.unreadCount(req.studentId) });
+}));
+
 app.post('/student/logout', requireStudentAuth, (req, res) => {
   // Tokens are stateless — the client discards it. The endpoint exists so
   // the portal can record the sign-out in one place.
@@ -685,6 +858,13 @@ app.post('/admin/login', handle(async (req, res) => {
 }));
 
 app.post('/admin/signup', handle(async (req, res) => {
+  // Anyone who can sign up as department staff can read that department's
+  // tickets and change their status, which notifies students. Set
+  // ALLOW_STAFF_SIGNUP=false once your staff accounts exist, and create new
+  // ones from the admin dashboard or create-staff.js instead.
+  if (String(process.env.ALLOW_STAFF_SIGNUP || '').toLowerCase() === 'false') {
+    return res.status(403).json({ error: 'Staff sign-up is closed. Ask an administrator to create your account.' });
+  }
   const { username, password, departmentId } = req.body;
   if (!username || !username.trim()) {
     return res.status(400).json({ error: 'Username is required.' });
@@ -719,19 +899,29 @@ app.get('/admin/me', requireStaffAuth, handle(async (req, res) => {
 
 app.get('/admin/tickets', requireStaffAuth, handle(async (req, res) => {
   const { status } = req.query;
-  if (status && !tickets.VALID_STATUSES.includes(status)) {
+  if (status && !tickets.VALID_STATUSES.includes(tickets.normalizeStatus(status))) {
     return res.status(400).json({ error: `status must be one of: ${tickets.VALID_STATUSES.join(', ')}` });
   }
-  res.json({ tickets: await tickets.listTickets({ status, departmentId: req.staff.departmentId, isAdmin: req.staff.isAdmin }) });
+  // The token only proves who logged in. Department and admin rights are read
+  // from the database, so a removed or re-assigned staff member loses access
+  // straight away instead of when their token expires.
+  const staff = await staffAuth.getStaffProfile(req.staff.sub);
+  if (!staff) return res.status(401).json({ error: 'Staff account no longer exists.' });
+  res.json({ tickets: await tickets.listTickets({ status, departmentId: staff.departmentId, isAdmin: staff.isAdmin }) });
 }));
 
 app.patch('/admin/tickets/:id/status', requireStaffAuth, handle(async (req, res) => {
-  const { status } = req.body;
-  const ticket = await tickets.updateTicketStatus(req.params.id, status, req.staff.departmentId, req.staff.isAdmin);
+  const { status, note } = req.body || {};
+  const staff = await staffAuth.getStaffProfile(req.staff.sub);
+  if (!staff) return res.status(401).json({ error: 'Staff account no longer exists.' });
+  // Forward moves only, in one transaction with the event and the student's
+  // notification. Staff of another department get the same 404 as for a
+  // ticket that does not exist.
+  const ticket = await tickets.changeStatus({ ticketId: req.params.id, status, note, staff });
   if (!ticket) return res.status(404).json({ error: 'No ticket found with that reference.' });
   notifyTicketChange();
   systemLog
-    .logEvent({ actor: req.staff.username, action: 'ticket.status_change', detail: `${ticket.id} -> ${status}` })
+    .logEvent({ actor: req.staff.username, action: 'ticket.status_change', detail: `${ticket.id} -> ${ticket.status}` })
     .catch((err) => console.error('Could not log system event:', err.message));
   res.json({ ticket });
 }));

@@ -43,7 +43,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   confidence REAL,
   reason TEXT NOT NULL DEFAULT 'manual_request',
   department_id TEXT,
-  status TEXT NOT NULL DEFAULT 'open',
+  student_id TEXT NULL,
+  subject TEXT NULL,
+  status TEXT NOT NULL DEFAULT 'opened',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
@@ -111,4 +113,46 @@ CREATE TABLE IF NOT EXISTS system_logs (
   action TEXT NOT NULL,
   detail TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Per-student chat memory. A student has many conversations; the newest one is
+-- the "current" chat. messages.role is 'user' or 'assistant'.
+CREATE TABLE IF NOT EXISTS conversations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conversation_id INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+);
+
+-- Every ticket status change leaves one event, and (for tickets that belong to
+-- a student) one notification for that student.
+CREATE TABLE IF NOT EXISTS ticket_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticket_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  note TEXT NULL,
+  staff_id TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+  FOREIGN KEY (staff_id) REFERENCES staff_users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id TEXT NOT NULL,
+  ticket_id TEXT NOT NULL,
+  message TEXT NOT NULL,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
 );
