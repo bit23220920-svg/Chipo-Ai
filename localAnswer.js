@@ -277,12 +277,25 @@ function answerFromChunks({ question, turns = [], chunks }) {
       }
     }
   }
+  // In a follow-up ("what about the practical fee?") the words of the new
+  // question say what is being asked; the earlier question only says what it
+  // is about. A line that lacks the new, specific words is the wrong line.
+  const focusTerms = query !== question
+    ? localSearch.tokenize(question, { query: true })
+        .filter((term) => !MONEY_WORDS.has(term) && index.documentFrequency.has(term))
+    : [];
   const candidates = [];
   results.forEach((chunk, chunkIndex) => {
     const units = splitUnits(chunk);
     units.forEach((unit, unitIndex) => {
       if (unit.isHeading) return;
-      const { score, coverage } = scoreUnit(unit, terms, index, kind, typed, mass);
+      const scored = scoreUnit(unit, terms, index, kind, typed, mass);
+      const { coverage } = scored;
+      let { score } = scored;
+      if (score > 0 && focusTerms.length) {
+        const words = new Set(localSearch.tokenize(unit.text));
+        if (!focusTerms.some((term) => words.has(term))) score *= 0.35;
+      }
       if (score > 0) {
         // Results ranked higher keep a small edge, so equal lines fall to the
         // better chunk.
