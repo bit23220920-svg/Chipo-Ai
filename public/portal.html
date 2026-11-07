@@ -221,7 +221,7 @@
     <main class="sp-content" id="spContent"></main>
 
     <footer class="sp-foot">
-      <b>University of Lusaka</b> Â· University of Lusaka Student Portal<br>
+      <b>University of Lusaka</b> · University of Lusaka Student Portal<br>
       Copyright &copy; 2011-2026 | Powered by EduRole | Customized by University of Lusaka ICT<br>
       EduRole is licensed under a Creative Commons Attribution-NC-ND 3.0 Unported License.
     </footer>
@@ -366,9 +366,9 @@
     const items = portalData.announcements.map((item, index) => `
       <article class="sp-announce" data-announce="${index}">
         <h3>${item.isImportant ? '<span class="sp-tag sp-tag-important">Important</span>' : ''}${escapeHtml(item.title)}</h3>
-        <div class="sp-meta">${escapeHtml(item.category || 'Notice')} Â· ${formatDate(item.publishedAt)} Â· ðŸ“Ž</div>
+        <div class="sp-meta">${escapeHtml(item.category || 'Notice')} · ${formatDate(item.publishedAt)} · 📎</div>
         <p>${escapeHtml(item.body)}</p>
-        <button class="sp-read" type="button">Read more â†’</button>
+        <button class="sp-read" type="button">Read more →</button>
       </article>`).join('');
 
     return `
@@ -480,10 +480,10 @@
             <div class="sp-facts">
               <div><span>Student number</span><strong>${escapeHtml(profile.studentNumber)}</strong></div>
               <div><span>Role</span><strong>${escapeHtml(profile.role)}</strong></div>
-              <div><span>Programme</span><strong>${escapeHtml(profile.programme || 'â€”')}</strong></div>
-              <div><span>Year of study</span><strong>${escapeHtml(profile.yearOfStudy || 'â€”')}</strong></div>
-              <div><span>Email</span><strong>${escapeHtml(profile.email || 'â€”')}</strong></div>
-              <div><span>Phone</span><strong>${escapeHtml(profile.phone || 'â€”')}</strong></div>
+              <div><span>Programme</span><strong>${escapeHtml(profile.programme || '—')}</strong></div>
+              <div><span>Year of study</span><strong>${escapeHtml(profile.yearOfStudy || '—')}</strong></div>
+              <div><span>Email</span><strong>${escapeHtml(profile.email || '—')}</strong></div>
+              <div><span>Phone</span><strong>${escapeHtml(profile.phone || '—')}</strong></div>
             </div>
           </div>
         </section>
@@ -581,7 +581,7 @@
       const readButton = card.querySelector('.sp-read');
       readButton.addEventListener('click', () => {
         const open = card.classList.toggle('open');
-        readButton.textContent = open ? 'Show less â†‘' : 'Read more â†’';
+        readButton.textContent = open ? 'Show less ↑' : 'Read more →';
       });
     });
 
@@ -713,7 +713,7 @@
   spLoginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     spLoginButton.disabled = true;
-    spLoginButton.textContent = 'Signing inâ€¦';
+    spLoginButton.textContent = 'Signing in…';
     spLoginError.textContent = '';
     try {
       const data = await api('/login', {

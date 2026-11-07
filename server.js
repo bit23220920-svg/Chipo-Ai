@@ -20,10 +20,19 @@ const fileReader = require('./fileReader.js');
 const { isTicketRequest, resolveTicketDepartment } = require('./ticketRouting.js');
 const { pool, useTurso } = require('./db.js');
 const { requireStaffAuth, requireAdminStaff, requireStudentAuth, requireActiveStudent, bearerToken } = require('./middleware.js');
+const { rateLimit, failedLogins } = require('./ratelimit.js');
 
 const app = express();
+// Do not tell visitors which framework this is.
+app.disable('x-powered-by');
+// Behind a proxy such as Caddy, set TRUST_PROXY=1 so req.ip (used by the rate
+// limits) is the visitor and not the proxy.
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', /^\d+$/.test(process.env.TRUST_PROXY) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY);
+}
 const PORT = process.env.PORT || 3000;
 const ticketEventClients = new Set();
+const MAX_QUESTION_LENGTH = 4000;
 const CAMPUSES = [
   {
     name: 'Pioneer Campus (Main/Administration)',
@@ -115,12 +124,32 @@ async function startServer() {
     process.exit(1);
   }
 
+  if (String(process.env.ALLOW_STAFF_SIGNUP || '').toLowerCase() !== 'false') {
+    console.warn('WARNING: staff sign-up is open, so anyone who can reach this site can create a staff account and read student tickets. Set ALLOW_STAFF_SIGNUP=false once your staff accounts exist.');
+  }
   app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
 }
 
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+  });
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+    res.set('Strict-Transport-Security', 'max-age=31536000');
+  }
+  next();
+});
 app.use(express.json({ limit: '16mb' }));
+// A request with no JSON body leaves req.body undefined. Give the routes an
+// empty object so they answer "missing field" instead of crashing.
+app.use((req, res, next) => {
+  if (req.body === undefined || req.body === null) req.body = {};
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // The student portal lives at /portal (served from public/portal.html).
@@ -166,6 +195,12 @@ function handle(fn) {
     try {
       await fn(req, res);
     } catch (err) {
+      // A deliberate 4xx (bad input, busy, conflict) is the caller's mistake,
+      // not the server's; logging each one with a stack trace buries the
+      // real failures, and a flood of them would fill the log.
+      if (err.statusCode && err.statusCode < 500) {
+        return res.status(err.statusCode).json({ error: err.message });
+      }
       console.error('ERROR:', err.cause || err);
       if (err.statusCode) {
         return res.status(err.statusCode).json({ error: err.message });
@@ -320,7 +355,8 @@ async function routeAndCreateTicket({ question, answer, confidence, reason, depa
   const routedDepartmentId = forcedDepartmentId
     || resolveTicketDepartment(question, availableDepartments, preferredDepartmentId, routingContext);
 
-  const ticket = await tickets.createTicket({
+  const existing = await tickets.findOpenDuplicate({ studentId, departmentId: routedDepartmentId, question });
+  const ticket = existing || await tickets.createTicket({
     ...contact,
     question,
     answer,
@@ -331,7 +367,7 @@ async function routeAndCreateTicket({ question, answer, confidence, reason, depa
     studentId,
   });
 
-  notifyTicketChange();
+  if (!existing) notifyTicketChange();
   ticket.departmentName = availableDepartments.find((department) => department.id === routedDepartmentId)?.name || null;
   return ticket;
 }
@@ -360,8 +396,11 @@ async function officeContactFor(question, departmentId = null, preferStudentAffa
 async function chatResponse(req, student) {
   const { question, sessionId: providedSessionId, attachmentIds } = req.body;
 
-  if (!question || !question.trim()) {
+  if (typeof question !== 'string' || !question.trim()) {
     return { status: 400, body: { error: 'Question is required.' } };
+  }
+  if (question.length > MAX_QUESTION_LENGTH) {
+    return { status: 400, body: { error: `Question must be ${MAX_QUESTION_LENGTH.toLocaleString('en-US')} characters or fewer.` } };
   }
   if (providedSessionId !== undefined &&
       (typeof providedSessionId !== 'string' || !/^[a-zA-Z0-9-]{16,64}$/.test(providedSessionId))) {
@@ -608,7 +647,7 @@ async function chatResponse(req, student) {
 // kept as an image for the model to look at, and then held in memory for a
 // short while. The next question carries the returned id, so the content
 // never has to travel back and forth inside the chat request.
-app.post('/attachments', handle(async (req, res) => {
+app.post('/attachments', rateLimit({ name: 'attachments', windowMs: 10 * 60 * 1000, max: 30 }), handle(async (req, res) => {
   const { filename, mimeType, data } = req.body || {};
 
   if (typeof data !== 'string' || !data) {
@@ -631,14 +670,14 @@ app.post('/attachments', handle(async (req, res) => {
 }));
 
 // The public website. No student session is honoured here, on purpose.
-app.post('/ask', handle(async (req, res) => {
+app.post('/ask', rateLimit({ name: 'ask', windowMs: 60 * 1000, max: 120 }), handle(async (req, res) => {
   const { status, body } = await chatResponse(req, null);
   res.status(status).json(body);
 }));
 
 // The student portal. The session is required — without it Chipo stays
 // locked and the portal asks the student to sign in again.
-app.post('/portal/ask', handle(async (req, res) => {
+app.post('/portal/ask', rateLimit({ name: 'portal-ask', windowMs: 60 * 1000, max: 60, key: (req) => crypto.createHash('sha256').update(String(bearerToken(req) || req.ip)).digest('hex').slice(0, 16) }), handle(async (req, res) => {
   const student = await studentSessionFromRequest(req);
   if (!student) {
     return res.status(401).json({ error: 'Your portal session has expired. Please sign in again.' });
@@ -649,7 +688,7 @@ app.post('/portal/ask', handle(async (req, res) => {
 
 // ==================== Student-facing: ticket lookup ====================
 
-app.post('/tickets', handle(async (req, res) => {
+app.post('/tickets', rateLimit({ name: 'tickets', windowMs: 10 * 60 * 1000, max: 20 }), handle(async (req, res) => {
   const body = req.body || {};
   const { question, answer, confidence, name, email, phone, reason, conversationSummary } = body;
   if (typeof question !== 'string' || !question.trim()) {
@@ -675,7 +714,7 @@ app.post('/tickets', handle(async (req, res) => {
 // Check a single ticket by its reference number. No login required — the
 // reference itself (random, unguessable) is the credential, the same way a
 // parcel tracking number works.
-app.get('/tickets/:id', handle(async (req, res) => {
+app.get('/tickets/:id', rateLimit({ name: 'ticket-lookup', windowMs: 60 * 1000, max: 60 }), handle(async (req, res) => {
   const ticket = await tickets.getTicket(req.params.id);
   // A ticket tied to a student account is only shown to that student, inside
   // the portal - here it looks exactly like a ticket that does not exist.
@@ -685,7 +724,7 @@ app.get('/tickets/:id', handle(async (req, res) => {
 
 // ==================== Student portal ====================
 
-app.post('/login', handle(async (req, res) => {
+app.post('/login', failedLogins({ name: 'login', account: (req) => typeof (req.body || {}).username === 'string' ? req.body.username : '' }), handle(async (req, res) => {
   const { username, password } = req.body || {};
   const [student, staff] = await Promise.all([
     studentAuth.verifyLogin(username, password),
@@ -704,7 +743,7 @@ app.post('/login', handle(async (req, res) => {
   return res.status(401).json({ error: 'Incorrect username or password.' });
 }));
 
-app.post('/student/login', handle(async (req, res) => {
+app.post('/student/login', failedLogins({ name: 'student-login', account: (req) => typeof (req.body || {}).studentNumber === 'string' ? req.body.studentNumber : '' }), handle(async (req, res) => {
   const { studentNumber, password } = req.body;
   const student = await studentAuth.verifyLogin(studentNumber, password);
   if (!student) return res.status(401).json({ error: 'Incorrect student number or password.' });
@@ -715,7 +754,7 @@ app.post('/student/login', handle(async (req, res) => {
 // Public self-registration endpoint for student accounts. It is enabled by
 // default for the demo; set ALLOW_STUDENT_SIGNUP=false to close it and fall
 // back to the create-student.js CLI.
-app.post('/student/register', handle(async (req, res) => {
+app.post('/student/register', rateLimit({ name: 'student-register', windowMs: 60 * 60 * 1000, max: 10 }), handle(async (req, res) => {
   if (String(process.env.ALLOW_STUDENT_SIGNUP || '').toLowerCase() === 'false') {
     return res.status(403).json({ error: 'Student sign-up is closed. Please contact the Registry for an account.' });
   }
@@ -849,7 +888,7 @@ app.post('/student/logout', requireStudentAuth, (req, res) => {
 
 // ==================== Staff login ====================
 
-app.post('/admin/login', handle(async (req, res) => {
+app.post('/admin/login', failedLogins({ name: 'admin-login', account: (req) => typeof (req.body || {}).username === 'string' ? req.body.username : '' }), handle(async (req, res) => {
   const { username, password } = req.body;
   const staff = await staffAuth.verifyLogin(username, password);
   if (!staff) return res.status(401).json({ error: 'Incorrect username or password.' });
@@ -857,7 +896,7 @@ app.post('/admin/login', handle(async (req, res) => {
   res.json({ token, staff });
 }));
 
-app.post('/admin/signup', handle(async (req, res) => {
+app.post('/admin/signup', rateLimit({ name: 'admin-signup', windowMs: 60 * 60 * 1000, max: 10 }), handle(async (req, res) => {
   // Anyone who can sign up as department staff can read that department's
   // tickets and change their status, which notifies students. Set
   // ALLOW_STAFF_SIGNUP=false once your staff accounts exist, and create new
@@ -1024,6 +1063,22 @@ app.get('/admin/logs/system', requireStaffAuth, requireAdminStaff, handle(async 
 app.get('/admin/logs/chat', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
   res.json({ messages: await chatlog.listRecentMessages({ limit: req.query.limit }) });
 }));
+
+// Anything that reaches here threw outside a route's own handler - mostly
+// bodies the JSON parser rejected. Answer in JSON and keep the stack trace
+// (which names files on the server) out of the response.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err && err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'That request is too large.' });
+  }
+  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError)) {
+    return res.status(400).json({ error: 'The request body is not valid JSON.' });
+  }
+  const status = err && Number.isInteger(err.status || err.statusCode) ? (err.status || err.statusCode) : 500;
+  if (status >= 500) console.error('ERROR:', err);
+  return res.status(status).json({ error: status >= 500 ? 'Something went wrong.' : 'The request could not be processed.' });
+});
 
 if (require.main === module) {
   startServer();

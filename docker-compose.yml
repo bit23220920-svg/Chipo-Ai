@@ -46,6 +46,11 @@ services:
       MYSQL_USER: ${MYSQL_USER:-chipo}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-chipo}
+      # Caddy sits in front, so trust its X-Forwarded-For. Without this every
+      # visitor looks like Caddy's address and the rate limits would count
+      # the whole university as one person. Do not publish port 3000 to the
+      # internet while this is on (the "ports" line below is for local use).
+      TRUST_PROXY: "1"
     depends_on:
       db:
         condition: service_healthy
