@@ -821,61 +821,106 @@
     if (row) row.remove();
   }
 
+  function showMessage(role, text, meta = {}, isError = false) {
+    try {
+      const bubble = addMessage(role, text, meta);
+      if (isError) bubble.classList.add('error');
+    } catch (err) {
+      console.error('Could not render chat message:', err);
+      try {
+        const fallback = document.createElement('p');
+        fallback.className = 'chat-render-fallback';
+        fallback.textContent = text;
+        chatInner.appendChild(fallback);
+        scrollToBottom();
+      } catch (fallbackError) {
+        console.error('Could not render chat response text:', fallbackError);
+        statusText.textContent = text;
+      }
+    }
+  }
+
   async function sendMessage() {
     const question = questionEl.value.trim();
     const attached = pendingFiles.slice();
 
     if (!question) {
       if (attached.length) {
-        const bubble = addMessage('bot', 'Tell me what you would like to know about the file you attached.');
-        bubble.classList.add('error');
+        showMessage('bot', 'Tell me what you would like to know about the file you attached.', {}, true);
       }
       return;
     }
 
-    addMessage('user', question, { attachments: attached });
-    questionEl.value = '';
-    questionEl.style.height = 'auto';
-    pendingFiles = [];
-    renderAttachTray();
-    sendBtn.disabled = true;
-
-    addThinkingBubble();
-
     try {
+      try {
+        showMessage('user', question, { attachments: attached });
+      } catch (err) {
+        console.error('Could not render the question:', err);
+      }
+
+      questionEl.value = '';
+      questionEl.style.height = 'auto';
+      pendingFiles = [];
+      try {
+        renderAttachTray();
+      } catch (err) {
+        console.error('Could not render the attachment tray:', err);
+      }
+      sendBtn.disabled = true;
+      try {
+        addThinkingBubble();
+      } catch (err) {
+        console.error('Could not render the thinking indicator:', err);
+      }
+
+      let data;
       // Inside the portal Chipo talks to /portal/ask and carries the
       // student's session. Everywhere else it talks to /ask, which grants no
       // portal access at all — so no session is sent.
       const inPortal = scope === 'portal';
-      const res = await fetch(inPortal ? '/portal/ask' : '/ask', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(inPortal && session.token ? { Authorization: 'Bearer ' + session.token } : {}),
-        },
-        body: JSON.stringify({
-          question,
-          sessionId: conversationSessionId,
-          attachmentIds: attached.map((file) => file.id),
-        })
-      });
-      const data = await readJsonResponse(res);
+      let res;
+      try {
+        res = await fetch(inPortal ? '/portal/ask' : '/ask', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(inPortal && session.token ? { Authorization: 'Bearer ' + session.token } : {}),
+          },
+          body: JSON.stringify({
+            question,
+            sessionId: conversationSessionId,
+            attachmentIds: attached.map((file) => file.id),
+          })
+        });
+        data = await readJsonResponse(res);
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+          throw new Error('The server returned an invalid chat response.');
+        }
+      } catch (err) {
+        console.error('Chat request failed:', err);
+        removeThinkingBubble();
+        showMessage('bot', 'Could not reach the server. Make sure it is still running.', {}, true);
+        return;
+      }
 
       removeThinkingBubble();
 
       // The session expired while the student was on the portal.
       if (res.status === 401 && inPortal) {
-        clearSession();
-        const b = addMessage('bot', data.error || 'Your portal session has expired. Please sign in again.');
-        b.classList.add('error');
+        try {
+          clearSession();
+        } catch (err) {
+          console.error('Could not update the expired portal session:', err);
+        }
+        showMessage('bot', data.error || 'Your portal session has expired. Please sign in again.', {}, true);
         return;
       }
 
       if (data.error) {
-        const b = addMessage('bot', data.error);
-        b.classList.add('error');
+        showMessage('bot', data.error, {}, true);
       } else {
-        addMessage('bot', data.answer, {
+        const answer = typeof data.answer === 'string' ? data.answer : 'I could not produce an answer. Please try again.';
+        showMessage('bot', answer, {
           needsHuman: data.needsHuman,
           confidence: data.confidence,
           question,
@@ -886,12 +931,8 @@
           campusMaps: data.campusMaps,
         });
         // Track this Q&A in history
-        conversationHistory.push({ question, answer: data.answer });
+        conversationHistory.push({ question, answer });
       }
-    } catch (err) {
-      removeThinkingBubble();
-      const b = addMessage('bot', 'Could not reach the server. Make sure it is still running.');
-      b.classList.add('error');
     } finally {
       sendBtn.disabled = false;
       questionEl.focus();
