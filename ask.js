@@ -420,6 +420,20 @@ async function askQuestion(question, history = [], options = {}) {
     };
   }
 
+  // Nobody gets another student's records, signed in or not. Refuse before
+  // anything is looked up and before any model is called.
+  if (!attachments.length && portalAccess.isOtherStudentRecordsRequest(question, student && student.studentNumber)) {
+    return {
+      answer: portalAccess.OTHER_STUDENT_ANSWER,
+      engine: 'none',
+      confidence: 0,
+      needsHuman: false,
+      source: 'portal_other_student',
+      departmentId: null,
+      access: student ? 'student' : 'public',
+    };
+  }
+
   // Portal access gate. Without a student session, a question about a
   // student's own records is refused outright — no context, no model call,
   // so there is nothing for the model to leak. An attached file is the user's

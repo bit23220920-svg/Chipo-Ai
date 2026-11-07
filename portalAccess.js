@@ -515,6 +515,29 @@ function isConversational(question) {
   return CONVERSATIONAL_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+// A request for somebody else's records - another student's number, or "every
+// student's" results - is refused for everyone, signed in or not. Nothing is
+// leaked today because the model only ever receives the signed-in student's
+// own records, but a request like this should never get as far as a model.
+const OTHER_STUDENT_NUMBER = /\b[A-Z]{2,4}\d{6,}\b/gi;
+const GROUP_OF_STUDENTS = /\b(?:every|all|each|other|another|any|everyone'?s|somebody'?s|someone'?s)\s+(?:the\s+)?(?:other\s+)?students?\b|\b(?:his|her|their|friend'?s|classmate'?s)\s+(?:results?|grades?|marks?|balance|records?|password|email|phone|details)\b/i;
+const RECORD_WORDS = /\b(?:results?|grades?|marks?|gpa|balances?|passwords?|e-?mail(?:s| address(?:es)?)?|phone(?: numbers?)?|records?|transcripts?|details|payments?|registration|exemptions?|appeals?)\b/i;
+const REQUEST_VERBS = /\b(?:show|print|list|give|tell|reveal|send|share|access|see|get|display|dump|export|read|look ?up|check|find|what(?:'s| is| are)|who)\b/i;
+
+function isOtherStudentRecordsRequest(question, ownStudentNumber = null) {
+  const text = String(question || '');
+  if (!RECORD_WORDS.test(text) || !REQUEST_VERBS.test(text)) return false;
+  const numbers = (text.match(OTHER_STUDENT_NUMBER) || []).map((n) => n.toUpperCase());
+  const own = ownStudentNumber ? String(ownStudentNumber).toUpperCase() : null;
+  if (numbers.some((number) => number !== own)) return true;
+  return GROUP_OF_STUDENTS.test(text);
+}
+
+const OTHER_STUDENT_ANSWER = [
+  "I can only show a student their own records, after they sign in, so I can't share another student's information.",
+  'If you need help with your own account, sign in to the student portal and ask me there.',
+].join(' ');
+
 // The answer used when the question has nothing to do with the university.
 const BOUNDARY_ANSWER = [
   "That's not really my area - I'm Chipo, the University of Lusaka student assistant, so I only cover UNILUS.",
@@ -769,6 +792,8 @@ module.exports = {
   isInScope,
   scopeCheck,
   isConversational,
+  isOtherStudentRecordsRequest,
+  OTHER_STUDENT_ANSWER,
   matchKeyword,
   containsFuzzy,
   editDistance,
