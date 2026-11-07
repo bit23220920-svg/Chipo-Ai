@@ -130,6 +130,22 @@ async function createTicket({ name, email, phone, question, answer, confidence, 
   return getTicket(id);
 }
 
+/**
+ * A student who sends the same question to the same office while an earlier
+ * ticket for it is still open gets that ticket back, not a second one.
+ */
+async function findOpenDuplicate({ studentId, departmentId, question }) {
+  if (!studentId || !departmentId || typeof question !== 'string' || !question.trim()) return null;
+  const { rows } = await query(
+    `SELECT id FROM tickets
+     WHERE student_id = $1 AND department_id = $2 AND status <> 'resolved'
+       AND LOWER(TRIM(question)) = LOWER(TRIM($3))
+     LIMIT 1`,
+    [studentId, departmentId, question]
+  );
+  return rows[0] ? getTicket(rows[0].id) : null;
+}
+
 async function assignUnassignedTickets(departmentId) {
   if (!departmentId) return;
   await query(
@@ -303,6 +319,7 @@ async function listTicketEvents(ticketId) {
 
 module.exports = {
   createTicket,
+  findOpenDuplicate,
   assignUnassignedTickets,
   listTickets,
   getTicket,

@@ -218,3 +218,14 @@ Chipo can answer with no API key and no internet. `localSearch.js` ranks the pro
 - If the documents do not hold the answer, the reply says so and the question goes to a department, as it does with Gemini.
 - FAQs saved in the admin dashboard while Gemini is unavailable are stored without an embedding; the local engine uses them straight away and Gemini embeds them the next time it is available.
 - The parsed documents are cached in `local-search-cache.json` (ignored by git).
+
+## Protection against abuse
+
+Chipo limits how fast one visitor can sign in, ask, open tickets or upload. These need no setup on a single server, but know these settings:
+
+- **`TRUST_PROXY=1`** - set it when Chipo runs behind Caddy or any reverse proxy (the Docker setup already does). Without it every visitor shares the proxy's address and the limits would count the whole university as one person. Leave it unset when visitors connect to Node directly.
+- **Sign-in:** 8 wrong passwords for one account from one address, or 40 wrong passwords from one address, locks that sign-in for 15 minutes (a `429` with `Retry-After`). A right password never counts against you.
+- **Password checks** run 4 at a time (`HASH_CONCURRENCY`), with 30 waiting (`HASH_QUEUE`); beyond that the answer is `503 "busy"` straight away, so a flood of sign-ins cannot freeze the site.
+- **`RATE_LIMIT_DISABLED=true`** switches the rate limits off, for load testing only.
+- **`ALLOW_STAFF_SIGNUP=false`** - strongly recommended once your staff accounts exist. While staff sign-up is open, anyone who can reach the site can create a staff account and read the contact details on that department's tickets. The server prints a warning at start-up if it is open.
+- The limits live in the memory of one server process. If you ever run several copies behind a load balancer, move the counters to a shared store such as Redis.

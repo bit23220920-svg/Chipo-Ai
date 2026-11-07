@@ -8,6 +8,7 @@
 
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
+const hashGate = require('./hashGate.js');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { query } = require('./db.js');
@@ -68,7 +69,7 @@ async function verifyLogin(username, password) {
   const { rows } = await query('SELECT * FROM staff_users WHERE username = $1', [(username || '').trim()]);
   const user = rows[0];
   if (!user) return null;
-  const ok = await bcrypt.compare(password, user.password_hash);
+  const ok = await hashGate.compare(password, user.password_hash);
   if (!ok) return null;
   return { ...rowToStaff(user), departmentId: user.department_id || null, isAdmin: !!user.is_admin };
 }

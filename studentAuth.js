@@ -14,6 +14,7 @@
 
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
+const hashGate = require('./hashGate.js');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { query } = require('./db.js');
@@ -115,7 +116,7 @@ async function verifyLogin(studentNumber, password) {
   );
   const student = rows[0];
   if (!student) return null;
-  const ok = await bcrypt.compare(password, student.password_hash);
+  const ok = await hashGate.compare(password, student.password_hash);
   if (!ok) return null;
   return rowToStudent(student);
 }
@@ -137,7 +138,7 @@ async function changePassword(id, currentPassword, newPassword) {
   const { rows } = await query('SELECT * FROM students WHERE id = $1', [id]);
   const student = rows[0];
   if (!student) throw badRequest('Student account no longer exists.');
-  const ok = await bcrypt.compare(currentPassword || '', student.password_hash);
+  const ok = await hashGate.compare(currentPassword || '', student.password_hash);
   if (!ok) throw badRequest('Your current password is incorrect.');
   const hash = await bcrypt.hash(newPassword, 12);
   await query('UPDATE students SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [hash, id]);

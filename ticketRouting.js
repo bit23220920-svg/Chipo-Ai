@@ -132,7 +132,11 @@ function matchingDepartmentForText(text, departments) {
   const normalizedText = normalizeText(text).replace(
     /\b(scholarship|bursary|hostel|accommodation|deferment|deferral|exemption|appeal|job)\s+applications?\b/g,
     '$1'
-  );
+  )
+    // "Account" is also a finance word. A locked email, wifi, portal or
+    // student account is a login problem for IT, not a question for Accounts.
+    .replace(/\b(?:student|email|e mail|wifi|wi fi|network|portal|lms|moodle)\s+accounts?\s+(?:is |was |has been |got )?(?:locked|blocked|disabled|suspended|hacked)\b/g, 'login locked')
+    .replace(/\b(?:email|e mail|wifi|wi fi|network|portal|lms|moodle)\s+accounts?\b/g, 'login');
   // The department that matches the most words wins, so "my hostel
   // application" goes to Student Affairs and not to Admissions, which also
   // hears about applications.
@@ -173,18 +177,53 @@ function matchingDepartmentForText(text, departments) {
 // common ones that would otherwise send the question to the wrong office.
 const GENERAL_INFO = /\b(?:how many|list|name of|which|what)\b[^?]{0,60}\b(?:campus|campuses|programme|programmes|program|programs|faculty|faculties|schools?)\b/;
 
+// Names a student might use for an office, besides the one on its sign.
+const EXTRA_OFFICE_NAMES = {
+  it: ['it office', 'it helpdesk', 'it help desk', 'it team', 'ict department', 'ict office'],
+};
+
+// "...from the IT department about my email" names the office outright; that
+// beats any word-counting. Only counts when exactly one office is named.
+function departmentNamedOutright(text, departments) {
+  const normalizedText = normalizeText(text);
+  const named = departments.filter((department) => {
+    const category = categoryForDepartment(department.name);
+    const names = [department.name, ...((category && EXTRA_OFFICE_NAMES[category]) || [])];
+    return names.some((name) => {
+      const clean = normalizeText(name);
+      return clean && new RegExp(`(^| )${clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`).test(normalizedText);
+    });
+  });
+  return named.length === 1 ? named[0] : null;
+}
+
+// Earlier messages only help when this one leans on them: "and when do I
+// pay?" or "what about that?" - not a brand new topic after a chat about fees.
+function looksLikeFollowUp(question) {
+  const text = normalizeText(question);
+  const words = text.split(' ').filter(Boolean);
+  return words.length <= 4
+    || /^(?:and|but|so|then|also|what about|how about|what if)\b/.test(text)
+    || /\b(?:it|that|this|these|those|them|there|same|too)\b/.test(text);
+}
+
 function resolveTicketDepartment(question, departments, preferredDepartmentId = null, routingContext = []) {
   if (GENERAL_INFO.test(normalizeText(question))) {
     const admissions = departments.find((department) => categoryForDepartment(department.name) === 'admissions');
     if (admissions) return admissions.id;
   }
 
+  const named = departmentNamedOutright(question, departments);
+  if (named) return named.id;
+
   const currentQuestionMatch = matchingDepartmentForText(question, departments);
   if (currentQuestionMatch) return currentQuestionMatch.id;
 
-  for (const previousQuestion of [...routingContext].reverse()) {
-    const contextMatch = matchingDepartmentForText(previousQuestion, departments);
-    if (contextMatch) return contextMatch.id;
+  if (looksLikeFollowUp(question)) {
+    for (const previousQuestion of [...routingContext].reverse()) {
+      const contextMatch = matchingDepartmentForText(previousQuestion, departments);
+      if (contextMatch) return contextMatch.id;
+    }
   }
 
   if (preferredDepartmentId) return preferredDepartmentId;
