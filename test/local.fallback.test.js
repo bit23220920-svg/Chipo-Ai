@@ -106,6 +106,14 @@ test('a follow-up uses the earlier question to know what "it" is', async () => {
   assert.match(result.answer, /ZMW/);
 });
 
+test('a follow-up asking about something specific is answered with that, not the earlier answer again', async () => {
+  const turns = [{ question: 'how much are the fees for bsc information technology', answer: 'Year 1 Semester 1: ZMW 12,000 ...' }];
+  const result = await answer('what about the practical fee', turns);
+  assert.match(result.answer, /Practical Fee/i);
+  assert.match(result.answer, /200\.00/);
+  assert.doesNotMatch(result.answer, /Year 1 Semester 1/);
+});
+
 test('without the earlier question the same follow-up is not guessed', async () => {
   const result = await answer('what about its fees?');
   assert.doesNotMatch(result.answer, /Information Technology/i);
