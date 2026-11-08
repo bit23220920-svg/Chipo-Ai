@@ -229,3 +229,21 @@ Chipo limits how fast one visitor can sign in, ask, open tickets or upload. Thes
 - **`RATE_LIMIT_DISABLED=true`** switches the rate limits off, for load testing only.
 - **`ALLOW_STAFF_SIGNUP=false`** - strongly recommended once your staff accounts exist. While staff sign-up is open, anyone who can reach the site can create a staff account and read the contact details on that department's tickets. The server prints a warning at start-up if it is open.
 - The limits live in the memory of one server process. If you ever run several copies behind a load balancer, move the counters to a shared store such as Redis.
+
+## Which AI model answers
+
+Chipo asks the models in this order and uses the first that works:
+
+1. **Groq** - set `GROQ_API_KEY` (from console.groq.com). Optional: `GROQ_MODEL` (default `llama-3.3-70b-versatile`), `GROQ_TIMEOUT_MS` (default 25000).
+2. **Gemini** - set `GEMINI_API_KEY`.
+3. **The built-in local engine** - needs no key; it answers from the documents when both models are missing or failing.
+
+Good to know:
+
+- If a model is busy, rejected or slow, Chipo skips it for a minute (for a busy Groq, as long as Groq asks) and moves to the next one, so students are not left waiting. Look for "Groq could not answer, trying the next model" in the logs.
+- **Groq cannot read pictures**, so a question with an attached image goes to Gemini (or the local engine).
+- **Groq has no embeddings.** Finding the right passages uses Gemini's embeddings when a Gemini key works, and the local search otherwise. Keep both keys for the best results; Groq alone also works.
+- Each question sends about 5,000 tokens to the model. Free plans limit tokens per minute, so a busy Groq plan will answer "429" now and then, and Chipo will quietly use Gemini for those questions. Check your plan's limits at console.groq.com.
+- `CHIPO_ENGINE=local` turns off every outside model, for testing.
+- Never put a key in the code or in chat. Keys live only in Render's **Environment** settings (or `.env` on your own machine).
+

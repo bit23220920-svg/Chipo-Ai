@@ -2,6 +2,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { genAI, embedText, cosineSimilarity } = require('./embeddings.js');
+const llm = require('./llm.js');
 const { getActiveFaqChunks, getActiveFaqTexts } = require('./faqs.js');
 const localSearch = require('./localSearch.js');
 const localAnswer = require('./localAnswer.js');
@@ -136,6 +137,36 @@ function hasGeminiKey() {
   if (String(process.env.CHIPO_ENGINE || '').toLowerCase() === 'local') return false;
   if (Date.now() < geminiDownUntil) return false;
   return Boolean(String(process.env.GEMINI_API_KEY || '').trim());
+}
+
+// Groq is asked first, Gemini second, the local engine last. A model that
+// fails is skipped for a minute (a busy Groq for as long as it asks) so the
+// next student is not left waiting on the same failure.
+function hasLanguageModel() {
+  return llm.groqAvailable() || hasGeminiKey();
+}
+
+function stepAsideFromGroq(err) {
+  console.error('Groq could not answer, trying the next model:', err.message);
+  llm.markGroqDown(err && err.retryAfterMs ? err.retryAfterMs : undefined);
+}
+
+// One plain prompt in, text out: Groq first, then Gemini. Used for the small
+// jobs (rewriting a follow-up, summarising a chat). Throws if no model works.
+async function generateText(prompt) {
+  if (llm.groqAvailable()) {
+    try {
+      return await llm.groqGenerate(prompt);
+    } catch (err) {
+      stepAsideFromGroq(err);
+    }
+  }
+  if (hasGeminiKey()) {
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  }
+  throw new Error('No language model is available.');
 }
 
 // An error that retrying will not fix: a missing or rejected key, or no
@@ -333,14 +364,13 @@ function rewriteCampusFollowUp(question, history) {
 async function rewriteStandaloneQuestion(question, history) {
   const { summary, messages } = normalizeConversationHistory(history);
   if (!messages.length || isGreetingOrThanks(question)) return question;
-  if (!hasGeminiKey()) return question; // the local engine reads the history itself
+  if (!hasLanguageModel()) return question; // the local engine reads the history itself
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
-    const result = await model.generateContent(
+    const text = await generateText(
       `Rewrite the student's latest message as one standalone search question using the conversation history only to resolve references such as "they", "it", "that one", "and the fees", or "tell me more". Do not answer it or add facts. If it is already standalone, repeat it unchanged. Return only the rewritten question.\n\n${formatHistoryForPrompt({ summary, messages })}Latest message: ${question}`
     );
-    const rewritten = result.response.text().trim().replace(/^["'“]|["'”]$/g, '').trim();
+    const rewritten = text.trim().replace(/^["'“]|["'”]$/g, '').trim();
     return rewritten ? rewritten.slice(0, 1000) : question;
   } catch (err) {
     // The rewrite only makes retrieval better. If the model is busy or
@@ -352,11 +382,10 @@ async function rewriteStandaloneQuestion(question, history) {
 }
 
 async function summarizeConversation(previousSummary, messages) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
-  const result = await model.generateContent(
+  const text = await generateText(
     `Update this running summary of a university assistant conversation. Preserve topics, named entities, questions and answers needed to resolve later references. Do not add facts. Keep it concise.\n\nCurrent summary:\n${previousSummary || '(none)'}\n\nOlder messages:\n${messages.map((message) => `${message.role}: ${message.content}`).join('\n')}`
   );
-  const summary = result.response.text().trim();
+  const summary = text.trim();
   if (!summary) throw new Error('The conversation summary was empty.');
   return summary.slice(0, 12000);
 }
@@ -465,8 +494,10 @@ async function askQuestion(question, history = [], options = {}) {
   }
 
   let topChunks = [];
-  let engine = hasGeminiKey() ? 'gemini' : 'local';
-  if (!skipSearch && engine === 'gemini') {
+  // How the passages are found. Gemini's embeddings when a Gemini key works;
+  // otherwise the local search, which is what lets Groq answer without Gemini.
+  let retrieval = hasGeminiKey() ? 'gemini' : 'local';
+  if (!skipSearch && retrieval === 'gemini') {
     try {
       const pdfChunks = await loadContent();
 
@@ -492,9 +523,32 @@ async function askQuestion(question, history = [], options = {}) {
       // Gemini is unreachable or rejected the key: answer from the local engine.
       console.error('Gemini retrieval failed, switching to the local engine:', err.message);
       markGeminiDown();
-      engine = 'local';
+      retrieval = 'local';
       topChunks = [];
     }
+  }
+  // Groq will write the answer but cannot embed, so find its passages with the
+  // local search. (If no model is up, the local engine below does this itself.)
+  const groqWillAnswer = llm.groqAvailable() && !imageAttachments.length;
+  let localConfidence = null;
+  if (!skipSearch && retrieval === 'local' && groqWillAnswer && !portalAccess.isConversational(question)) {
+    let localChunks = [];
+    try { localChunks = await getActiveFaqTexts(); } catch (err) {
+      console.error('Could not load FAQs for the local search:', err.message);
+    }
+    try { localChunks = localChunks.concat(await localSearch.loadDocumentChunks()); } catch (err) {
+      console.error('Could not load documents for the local search:', err.message);
+    }
+    const found = localAnswer.answerFromChunks({ question: retrievalQuestion, turns: historyTurns, chunks: localChunks });
+    // The passages the local engine answered from come first (it picks fee
+    // tables and the like on purpose), then the next-best matches.
+    const chosen = new Set(found.usedIndexes);
+    const ordered = [
+      ...found.usedIndexes.map((i) => found.topChunks[i]),
+      ...found.topChunks.filter((chunk, i) => !chosen.has(i)),
+    ].filter(Boolean);
+    topChunks = ordered.slice(0, 5).map((chunk) => ({ ...chunk, score: found.confidence }));
+    localConfidence = found.confidence;
   }
   const context = topChunks.map((chunk, index) =>
     `[S${index + 1}] Source: ${chunk.filename}\n${chunk.text}`
@@ -502,7 +556,7 @@ async function askQuestion(question, history = [], options = {}) {
   let topScore = topChunks.length ? topChunks[0].score : 0;
   let topSource = topChunks.length ? (topChunks[0].source || 'rag') : 'rag';
 
-  if (engine === 'gemini') {
+  if (retrieval === 'gemini' || localConfidence !== null) {
     console.log("Using context from:", topChunks.map(c => c.filename), `(top score: ${topScore.toFixed(3)})`);
   }
 
@@ -654,15 +708,29 @@ Chipo's answer:`;
     });
   }
 
-  let result = null;
   let answerText = '';
   let usedSourceIds = [];
+  let engine = 'local';
+  let rawText = null;
 
-  if (engine === 'gemini') {
+  // 1. Groq. It cannot read images, so a question with a picture goes to Gemini.
+  if (groqWillAnswer) {
+    try {
+      rawText = await llm.groqGenerate(prompt, { temperature: 0.4 });
+      engine = 'groq';
+    } catch (err) {
+      stepAsideFromGroq(err);
+    }
+  }
+
+  // 2. Gemini, with its retries.
+  if (rawText === null && hasGeminiKey()) {
     const maxRetries = 5;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        result = await model.generateContent({ contents: [{ role: 'user', parts }] });
+        const result = await model.generateContent({ contents: [{ role: 'user', parts }] });
+        rawText = result.response.text();
+        engine = 'gemini';
         break;
       } catch (err) {
         // Some models refuse image input. If that happens, answer from the
@@ -678,7 +746,6 @@ Chipo's answer:`;
         if (isPermanentModelError(err) || attempt === maxRetries) {
           console.error('Gemini could not answer, switching to the local engine:', err.message);
           markGeminiDown();
-          engine = 'local';
           break;
         }
         const waitTime = attempt * 5000;
@@ -688,8 +755,9 @@ Chipo's answer:`;
     }
   }
 
-  if (engine === 'gemini') {
-    answerText = result.response.text();
+  // 3. Otherwise the local engine, which needs no key and no network.
+  if (rawText !== null) {
+    answerText = rawText;
     const usedSourceMatch = answerText.match(/(?:^|\n)\s*USED_SOURCES:\s*(.*?)\s*$/i);
     usedSourceIds = usedSourceMatch
       ? (usedSourceMatch[1].match(/\bS\d+\b/gi) || []).map((id) => id.toUpperCase())
@@ -697,6 +765,7 @@ Chipo's answer:`;
     if (usedSourceMatch) {
       answerText = answerText.slice(0, usedSourceMatch.index).trim();
     }
+    console.log(`Answered by ${engine}.`);
   } else {
     // The local engine: no API key and no network needed.
     if (skipSearch || portalAccess.isConversational(question)) {
@@ -757,9 +826,12 @@ Chipo's answer:`;
   // still the right question, so the retrieval score is not held against it
   // either - the answer itself decides whether it goes to a department.
   const answeredFromOwnSource = answeredFromPortal || answeredFromFile || conversational || scope.fuzzy;
+  // Groq writing from passages the local search found: the search score is a
+  // different scale from Gemini's, so the model's own "I'm not sure" decides.
+  const modelOverLocalSearch = engine !== 'local' && localConfidence !== null;
   const needsHuman = conversational
     ? false
-    : (answeredFromOwnSource
+    : ((answeredFromOwnSource || modelOverLocalSearch)
       ? looksUncertain(answerText)
       : (topScore < ESCALATION_THRESHOLD || looksUncertain(answerText)));
 
