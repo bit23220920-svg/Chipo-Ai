@@ -30,7 +30,7 @@ const SECRET_PATTERNS = [
 function scrub(text) {
   let out = String(text === undefined || text === null ? '' : text);
   // The exact secrets this server is configured with, whatever shape they have.
-  for (const name of ['GROQ_API_KEY', 'GEMINI_API_KEY', 'JWT_SECRET', 'TURSO_AUTH_TOKEN', 'SMTP_PASS']) {
+  for (const name of ['GROQ_API_KEY', 'LLM_API_KEY', 'GEMINI_API_KEY', 'JWT_SECRET', 'TURSO_AUTH_TOKEN', 'SMTP_PASS']) {
     const value = process.env[name];
     if (value && value.length >= 8) out = out.split(value).join('[hidden]');
   }

@@ -11,7 +11,8 @@
 //
 // Settings (all optional except the key):
 //   GROQ_API_KEY        the key from console.groq.com. Never logged.
-//   GROQ_MODEL          default llama-3.3-70b-versatile
+//                       (LLM_API_KEY is accepted too, for the same key.)
+//   GROQ_MODEL          default llama-3.3-70b-versatile (LLM_MODEL also works)
 //   GROQ_TIMEOUT_MS     give up and move on after this long (default 25000)
 //   GROQ_COOLDOWN_MS    after a failure, skip Groq for this long (default 60000)
 //   CHIPO_ENGINE=local  turns off every outside model
@@ -22,11 +23,11 @@ const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
 let groqDownUntil = 0;
 
 function groqModel() {
-  return String(process.env.GROQ_MODEL || '').trim() || DEFAULT_MODEL;
+  return String(process.env.GROQ_MODEL || process.env.LLM_MODEL || '').trim() || DEFAULT_MODEL;
 }
 
 function groqKey() {
-  return String(process.env.GROQ_API_KEY || '').trim();
+  return String(process.env.GROQ_API_KEY || process.env.LLM_API_KEY || '').trim();
 }
 
 function cooldownMs() {

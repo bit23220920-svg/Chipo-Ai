@@ -77,3 +77,31 @@ test('if the API refuses the reasoning setting, the call is repeated without it'
     assert.equal('reasoning_effort' in bodies[1], false);
   });
 });
+
+test('the key and model can also be set as LLM_API_KEY and LLM_MODEL', async () => {
+  const saved = { GROQ_API_KEY: process.env.GROQ_API_KEY, LLM_API_KEY: process.env.LLM_API_KEY, GROQ_MODEL: process.env.GROQ_MODEL, LLM_MODEL: process.env.LLM_MODEL };
+  delete process.env.GROQ_API_KEY; delete process.env.GROQ_MODEL;
+  process.env.LLM_API_KEY = 'gsk_alias_key_value_123456';
+  process.env.LLM_MODEL = 'openai/gpt-oss-120b';
+  llm.resetGroqCooldown();
+  const seen = [];
+  global.fetch = async (url, init) => {
+    if (!String(url).includes('api.groq.com')) return realFetch(url, init);
+    seen.push({ auth: init.headers.Authorization, body: JSON.parse(init.body) });
+    return ok('via alias');
+  };
+  try {
+    assert.equal(llm.groqAvailable(), true);
+    assert.equal(await llm.groqGenerate('hi'), 'via alias');
+    assert.equal(seen[0].auth, 'Bearer gsk_alias_key_value_123456');
+    assert.equal(seen[0].body.model, 'openai/gpt-oss-120b');
+    // The Groq names win when both are set.
+    process.env.GROQ_API_KEY = 'gsk_primary_key_value_123456';
+    await llm.groqGenerate('hi');
+    assert.equal(seen[1].auth, 'Bearer gsk_primary_key_value_123456');
+  } finally {
+    global.fetch = realFetch;
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    llm.resetGroqCooldown();
+  }
+});

@@ -95,7 +95,7 @@ function describeModels() {
   const llm = require('./llm.js');
   if (String(process.env.CHIPO_ENGINE || '').toLowerCase() === 'local') return 'local engine only (CHIPO_ENGINE=local)';
   const chain = [];
-  chain.push(llm.groqAvailable() ? `Groq (${llm.groqModel()})` : 'Groq NOT set up (GROQ_API_KEY missing)');
+  chain.push(llm.groqAvailable() ? `Groq (${llm.groqModel()})` : 'Groq NOT set up (set GROQ_API_KEY or LLM_API_KEY)');
   chain.push(String(process.env.GEMINI_API_KEY || '').trim() ? 'Gemini' : 'Gemini NOT set up (GEMINI_API_KEY missing)');
   chain.push('local engine');
   return chain.join(' -> ');

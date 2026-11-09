@@ -234,7 +234,7 @@ Chipo limits how fast one visitor can sign in, ask, open tickets or upload. Thes
 
 Chipo asks the models in this order and uses the first that works:
 
-1. **Groq** - set `GROQ_API_KEY` (from console.groq.com). Optional: `GROQ_MODEL` (default `llama-3.3-70b-versatile`), `GROQ_TIMEOUT_MS` (default 25000).
+1. **Groq** - set `GROQ_API_KEY` (from console.groq.com); `LLM_API_KEY` works too. Optional: `GROQ_MODEL` or `LLM_MODEL` (default `llama-3.3-70b-versatile`), `GROQ_TIMEOUT_MS` (default 25000).
 2. **Gemini** - set `GEMINI_API_KEY`.
 3. **The built-in local engine** - needs no key; it answers from the documents when both models are missing or failing.
 
