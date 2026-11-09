@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { genAI, embedText, cosineSimilarity } = require('./embeddings.js');
 const llm = require('./llm.js');
+const errorlog = require('./errorlog.js');
 const { getActiveFaqChunks, getActiveFaqTexts } = require('./faqs.js');
 const localSearch = require('./localSearch.js');
 const localAnswer = require('./localAnswer.js');
@@ -148,6 +149,7 @@ function hasLanguageModel() {
 
 function stepAsideFromGroq(err) {
   console.error('Groq could not answer, trying the next model:', err.message);
+  errorlog.record({ component: 'groq', kind: 'model_failure', error: err, detail: 'Groq could not answer; trying the next model' });
   llm.markGroqDown(err && err.retryAfterMs ? err.retryAfterMs : undefined);
 }
 
@@ -522,6 +524,7 @@ async function askQuestion(question, history = [], options = {}) {
     } catch (err) {
       // Gemini is unreachable or rejected the key: answer from the local engine.
       console.error('Gemini retrieval failed, switching to the local engine:', err.message);
+      errorlog.record({ component: 'retrieval', kind: 'model_failure', error: err, detail: 'Gemini embeddings failed; searching with the local engine' });
       markGeminiDown();
       retrieval = 'local';
       topChunks = [];
@@ -745,6 +748,7 @@ Chipo's answer:`;
         // either way the local engine answers instead of an error page.
         if (isPermanentModelError(err) || attempt === maxRetries) {
           console.error('Gemini could not answer, switching to the local engine:', err.message);
+          errorlog.record({ component: 'gemini', kind: 'model_failure', error: err, detail: isPermanentModelError(err) ? 'Gemini rejected the request (will not retry)' : `Gemini still failing after ${maxRetries} tries` });
           markGeminiDown();
           break;
         }
@@ -767,6 +771,9 @@ Chipo's answer:`;
     }
     console.log(`Answered by ${engine}.`);
   } else {
+    if (hasLanguageModel() && !skipSearch) {
+      errorlog.record({ component: 'local', kind: 'fallback', detail: 'No language model produced an answer, so the built-in local engine answered instead' });
+    }
     // The local engine: no API key and no network needed.
     if (skipSearch || portalAccess.isConversational(question)) {
       answerText = localAnswer.conversationalReply(question);

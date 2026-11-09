@@ -5,6 +5,7 @@
 // same code runs on MySQL and on Turso/SQLite.
 
 const { query } = require('./db.js');
+const errorlog = require('./errorlog.js');
 
 function sqlTime(date) {
   return date.toISOString().slice(0, 19).replace('T', ' ');
@@ -87,6 +88,7 @@ async function overview({ days = 30 } = {}) {
   const down = feedbackCounts['feedback:down'] || 0;
   const complaints = Object.entries(feedbackCounts).filter(([k]) => k.startsWith('complaint:')).reduce((s, [, v]) => s + v, 0);
 
+  const errorCounts = await errorlog.countsSince(sinceSql).catch(() => ({}));
   const students = await query('SELECT COUNT(*) AS total FROM students');
 
   return {
@@ -113,6 +115,7 @@ async function overview({ days = 30 } = {}) {
       satisfaction: up + down ? Math.round((up / (up + down)) * 100) : null,
       complaints,
     },
+    errors: { total: Object.values(errorCounts).reduce((s, v) => s + v, 0), byComponent: errorCounts },
     students: Number(students.rows[0]?.total || 0),
   };
 }

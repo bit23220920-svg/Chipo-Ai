@@ -757,6 +757,7 @@
             <div class="subtab-row">
               <button class="subtab active" data-logtab="system">Staff activity</button>
               <button class="subtab" data-logtab="chat">Chat activity</button>
+              <button class="subtab" data-logtab="errors">Errors</button>
             </div>
             <div id="logsWrap"></div>
           </div>
@@ -1241,6 +1242,7 @@
           tile('Avg. time to resolve', d.tickets.averageResolutionHours === null ? '—' : d.tickets.averageResolutionHours + ' h') +
           tile('Student satisfaction', d.feedback.satisfaction === null ? '—' : d.feedback.satisfaction + '%') +
           tile('Complaints', d.feedback.complaints) +
+          tile('Errors logged', d.errors ? d.errors.total : 0) +
           tile('Registered students', d.students) +
         '</div>' +
         '<h4 style="margin:22px 0 8px;">Questions per day</h4>' +
@@ -1670,6 +1672,23 @@
             '<div class="log-top"><span class="log-actor">' + escapeHtml(e.actor) + '</span><span class="log-time">' + formatDate(e.createdAt) + '</span></div>' +
             '<div>' + escapeHtml(e.action) + '</div>' +
             (e.detail ? '<div class="log-detail">' + escapeHtml(e.detail) + '</div>' : '') +
+          '</div>'
+        ).join('');
+      } else if (currentLogTab === 'errors') {
+        const { errors } = await api('GET', '/admin/logs/errors?limit=200');
+        if (!errors.length) {
+          wrap.innerHTML = '<div class="empty-state">No errors recorded. Chipo has answered everything without a failure.</div>';
+          return;
+        }
+        const why = { groq: 'Groq', gemini: 'Gemini', retrieval: 'Document search', local: 'Local engine', server: 'Server', database: 'Database', tickets: 'Tickets' };
+        wrap.innerHTML = errors.map((e) =>
+          '<div class="log-row">' +
+            '<div class="log-top"><span class="log-actor">' + escapeHtml(why[e.component] || e.component) +
+              ' · ' + escapeHtml(e.kind.replace(/_/g, ' ')) + (e.statusCode ? ' · HTTP ' + e.statusCode : '') + '</span>' +
+              '<span class="log-time">' + formatDate(e.createdAt) + '</span></div>' +
+            '<div>' + escapeHtml(e.message) + '</div>' +
+            (e.question ? '<div class="log-detail"><strong>Question:</strong> ' + escapeHtml(e.question) + '</div>' : '') +
+            (e.route ? '<div class="log-detail">' + escapeHtml(e.route) + '</div>' : '') +
           '</div>'
         ).join('');
       } else {

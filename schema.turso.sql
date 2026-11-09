@@ -171,3 +171,15 @@ CREATE TABLE IF NOT EXISTS feedback (
   status TEXT NOT NULL DEFAULT 'new',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS error_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL DEFAULT 'error',
+  component TEXT NOT NULL,
+  message TEXT NOT NULL,
+  status_code INTEGER NULL,
+  question TEXT NULL,
+  session_id TEXT NULL,
+  route TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

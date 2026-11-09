@@ -9,6 +9,7 @@ const mailer = require('./mailer.js');
 const feedback = require('./feedback.js');
 const analytics = require('./analytics.js');
 const documents = require('./documents.js');
+const errorlog = require('./errorlog.js');
 const faqs = require('./faqs.js');
 const departments = require('./departments.js');
 const staffAuth = require('./staffAuth.js');
@@ -206,6 +207,14 @@ function handle(fn) {
         return res.status(err.statusCode).json({ error: err.message });
       }
       console.error('ERROR:', err.cause || err);
+      errorlog.record({
+        component: /^(ER_|SQLITE|LibsqlError)|ECONNREFUSED|database/i.test(`${err.code || ''} ${err.name || ''} ${err.message || ''}`) ? 'database' : 'server',
+        kind: 'server_error',
+        error: err.cause || err,
+        route: `${req.method} ${req.path}`,
+        statusCode: err.statusCode || 500,
+        question: req.body && typeof req.body.question === 'string' ? req.body.question : undefined,
+      });
       if (err.statusCode) {
         return res.status(err.statusCode).json({ error: err.message });
       }
@@ -452,6 +461,7 @@ async function chatResponse(req, student) {
       });
     } catch (err) {
       console.error('Could not save the chat messages:', err.message);
+      errorlog.record({ component: 'database', kind: 'memory_failure', error: err, detail: 'Could not save the chat exchange' });
     }
   };
 
@@ -579,6 +589,7 @@ async function chatResponse(req, student) {
         });
       } catch (err) {
         console.error('Could not open the ticket:', err.message);
+        errorlog.record({ component: 'tickets', kind: 'ticket_failure', error: err, detail: 'Could not open a ticket for an escalated question' });
       }
     }
 
@@ -682,7 +693,10 @@ app.post('/attachments', rateLimit({ name: 'attachments', windowMs: 10 * 60 * 10
 
 // The public website. No student session is honoured here, on purpose.
 app.post('/ask', rateLimit({ name: 'ask', windowMs: 60 * 1000, max: 120 }), handle(async (req, res) => {
-  const { status, body } = await chatResponse(req, null);
+  const { status, body } = await errorlog.runWith(
+    { route: 'POST /ask', question: (req.body || {}).question, sessionId: (req.body || {}).sessionId },
+    () => chatResponse(req, null)
+  );
   res.status(status).json(body);
 }));
 
@@ -693,7 +707,10 @@ app.post('/portal/ask', rateLimit({ name: 'portal-ask', windowMs: 60 * 1000, max
   if (!student) {
     return res.status(401).json({ error: 'Your portal session has expired. Please sign in again.' });
   }
-  const { status, body } = await chatResponse(req, student);
+  const { status, body } = await errorlog.runWith(
+    { route: 'POST /portal/ask', question: (req.body || {}).question, sessionId: (req.body || {}).sessionId },
+    () => chatResponse(req, student)
+  );
   res.status(status).json(body);
 }));
 
@@ -1142,6 +1159,10 @@ app.get('/admin/logs/system', requireStaffAuth, requireAdminStaff, handle(async 
 
 // Chat activity (what students have been asking, and how confidently
 // Chipo answered) — the other half of "view system logs".
+app.get('/admin/logs/errors', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  res.json({ errors: await errorlog.list({ limit: req.query.limit, component: req.query.component }) });
+}));
+
 app.get('/admin/logs/chat', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
   res.json({ messages: await chatlog.listRecentMessages({ limit: req.query.limit }) });
 }));

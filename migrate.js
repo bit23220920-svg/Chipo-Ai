@@ -52,6 +52,7 @@ async function main() {
       'CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at)',
       'CREATE INDEX IF NOT EXISTS idx_chat_messages_student ON chat_messages(student_id)',
       'CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_error_logs_created ON error_logs(created_at)',
       'CREATE INDEX IF NOT EXISTS idx_system_logs_created ON system_logs(created_at)',
       'CREATE INDEX IF NOT EXISTS idx_announcements_published ON announcements(published_at)',
     ];

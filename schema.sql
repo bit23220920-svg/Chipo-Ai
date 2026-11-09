@@ -189,3 +189,17 @@ CREATE TABLE IF NOT EXISTS feedback (
   INDEX idx_feedback_created (created_at),
   INDEX idx_feedback_kind (kind, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS error_logs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  kind VARCHAR(30) NOT NULL DEFAULT 'error',
+  component VARCHAR(40) NOT NULL,
+  message VARCHAR(1000) NOT NULL,
+  status_code INT NULL,
+  question VARCHAR(500) NULL,
+  session_id VARCHAR(64) NULL,
+  route VARCHAR(120) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_error_logs_created (created_at),
+  INDEX idx_error_logs_component (component)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

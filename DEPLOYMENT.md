@@ -256,3 +256,7 @@ Good to know:
 - **Documents** tab: upload or remove PDF, TXT or Markdown files that Chipo answers from. Files go in the `content/` folder. On a host with a temporary disk (Render's free plan) uploaded files vanish on redeploy, so also commit the originals to `content/`.
 - **Email notifications** are optional. Set `SMTP_HOST`, `SMTP_PORT` (587 or 465), `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`; with none set, nothing is sent. Students with an email on their ticket get a message when the ticket is opened and each time its status changes.
 - Run `node migrate.js` once (Render does it on deploy) to add the new columns and the `feedback` table.
+
+## Error log (why a question failed)
+
+Admin panel > Activity Log > **Errors** lists every failure that stopped Chipo from answering normally: Groq or Gemini errors (with the HTTP status), document search failures, a fall-back to the built-in local engine, tickets that could not be opened, and unexpected server or database errors, each with the question and route. API keys and tokens are removed from every entry, and entries older than 60 days are deleted. The Analytics tab shows how many errors were logged. The same lines still appear in Render's Logs, but Render only keeps recent logs; this list does not disappear on redeploy.
