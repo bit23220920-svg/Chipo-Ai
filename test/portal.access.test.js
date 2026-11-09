@@ -248,7 +248,7 @@ test('the portal chat answers a signed-in student and reports student access', a
           'Content-Type': 'application/json',
           Authorization: 'Bearer student-token',
         },
-        body: JSON.stringify({ question: 'What is my fee balance?' }),
+        body: JSON.stringify({ question: 'Can you summarise my situation at the university?' }),
       });
       const body = await response.json();
 

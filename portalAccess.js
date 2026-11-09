@@ -259,6 +259,14 @@ function isPersonalPortalQuestion(question) {
   const text = String(question || '').toLowerCase();
   if (!text.trim()) return false;
 
+  // "How do I pay my fees?" asks how something is done, which anyone may ask.
+  // ("How much do I owe?" is not a how-to: that is the student's own figure.)
+  if (/\b(?:how\s+(?:do|can|should|would|could)\s+(?:i|we)|how\s+to|what\s+(?:is|are)\s+the\s+(?:process|procedure|steps?)\s+(?:to|for|of))\b/.test(text)
+      && !/\b(?:check|see|view|know|find out|look up)\s+(?:my|how much)\b/.test(text)
+      && !/\bhow\s+(?:do|can)\s+i\s+(?:check|see|view|know)\b/.test(text)) {
+    return false;
+  }
+
   const hasMarker = PERSONAL_MARKERS.some((marker) => marker.test(text));
 
   // A private record: a result, a transcript, a deferment. A marker anywhere

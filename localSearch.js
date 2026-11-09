@@ -287,7 +287,11 @@ function buildIndex(chunks) {
     const tokens = tokenize(boosted);
     const counts = new Map();
     for (const token of tokens) counts.set(token, (counts.get(token) || 0) + 1);
-    return { chunk, counts, length: tokens.length || 1 };
+    // A short first line is a heading ("Application Process"). A question that
+    // only reaches it through a synonym ("how do I apply") still means it.
+    const headTokens = tokenize(firstLine);
+    const headTerms = firstLine.trim().split(/\s+/).length <= 6 ? new Set(headTokens) : new Set();
+    return { chunk, counts, length: tokens.length || 1, headTerms };
   });
 
   const documentFrequency = new Map();
@@ -359,9 +363,10 @@ function search(index, question, k = 4) {
   for (const doc of index.docs) {
     let score = 0;
     let matched = 0;
-    for (const [term, weight] of weights) {
+    for (const [term, rawWeight] of weights) {
       const frequency = doc.counts.get(term);
       if (!frequency) continue;
+      const weight = rawWeight < 0.9 && doc.headTerms && doc.headTerms.has(term) ? 0.9 : rawWeight;
       const termIdf = idf(index, term);
       const norm = frequency * (k1 + 1) / (frequency + k1 * (1 - b + b * doc.length / index.averageLength));
       score += termIdf * norm * weight;

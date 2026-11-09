@@ -801,7 +801,12 @@ Chipo's answer:`;
       try { localChunks = localChunks.concat(await localSearch.loadDocumentChunks()); } catch (err) {
         console.error('Could not load documents for the local engine:', err.message);
       }
-      localChunks = localChunks.concat(portalChunksFromContext(portalContext));
+      // The portal text is only worth searching when the question is about the
+      // portal or the student's own account; otherwise a short "Apply for
+      // Deferment" blurb outranks the prospectus's real answer to "how do I apply".
+      if (portalAccess.matchesPortalTopic(question) || portalAccess.isPersonalPortalQuestion(question) || /\bportal\b/i.test(question)) {
+        localChunks = localChunks.concat(portalChunksFromContext(portalContext));
+      }
       const local = localAnswer.answerFromChunks({
         question: retrievalQuestion,
         turns: historyTurns,

@@ -10,6 +10,7 @@ const feedback = require('./feedback.js');
 const analytics = require('./analytics.js');
 const documents = require('./documents.js');
 const errorlog = require('./errorlog.js');
+const portalAnswers = require('./portalAnswers.js');
 const faqs = require('./faqs.js');
 const departments = require('./departments.js');
 const staffAuth = require('./staffAuth.js');
@@ -536,7 +537,29 @@ async function chatResponse(req, student) {
     return { status: 400, body: { error: 'The attached file is no longer available. Please attach it again.' } };
   }
   const locationQuestion = !attachments.length && isCampusLocationQuestion(question, safeHistory);
-  const result = ticketRequest
+  // A signed-in student's question about their own records ("what are my
+  // courses", "how much do I owe") is answered straight from those records.
+  // No model is involved, so it is right even when Groq and Gemini are down.
+  let recordAnswer = null;
+  if (student && !ticketRequest && !attachments.length) {
+    try {
+      recordAnswer = portalAnswers.answerFromRecords(question, await studentPortal.getContextPayload(student));
+    } catch (err) {
+      console.error('Could not answer from the portal records:', err.message);
+    }
+  }
+  const result = recordAnswer
+    ? {
+        answer: recordAnswer.answer,
+        confidence: 0.95,
+        needsHuman: false,
+        source: 'portal',
+        sources: [],
+        engine: 'portal',
+        departmentId: null,
+        access,
+      }
+    : ticketRequest
     ? {
         answer: '',
         confidence: null,
