@@ -26,7 +26,8 @@ async function embedText(text, retries = 3) {
       const result = await model.embedContent(text);
       return result.embedding.values;
     } catch (err) {
-      if (attempt === retries) throw err;
+      // A daily quota will not clear in two seconds; retrying only burns more of it.
+      if (attempt === retries || /per day|PerDay|quota/i.test(String(err && err.message))) throw err;
       console.log(`  Retry ${attempt}/${retries}...`);
       await new Promise(r => setTimeout(r, 2000));
     }

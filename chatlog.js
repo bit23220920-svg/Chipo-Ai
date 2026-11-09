@@ -61,14 +61,21 @@ async function loadConversationHistory(sessionId, summarizeOlderMessages) {
         { role: 'user', content: row.question },
         { role: 'assistant', content: row.answer },
       ]);
-      const summary = await summarizeOlderMessages(state.summary || '', olderMessages);
-      const lastSummarizedId = Number(olderResult.rows[olderResult.rows.length - 1].id);
-      await query(
-        `UPDATE chat_conversations SET summary = $1, summarized_through_id = $2
-         WHERE session_id = $3`,
-        [summary, lastSummarizedId, sessionId]
-      );
-      state.summary = summary;
+      // A summary is a convenience. If no model can write one right now, the
+      // question is still answered, from the recent messages alone; the
+      // older ones are picked up the next time a model is available.
+      try {
+        const summary = await summarizeOlderMessages(state.summary || '', olderMessages);
+        const lastSummarizedId = Number(olderResult.rows[olderResult.rows.length - 1].id);
+        await query(
+          `UPDATE chat_conversations SET summary = $1, summarized_through_id = $2
+           WHERE session_id = $3`,
+          [summary, lastSummarizedId, sessionId]
+        );
+        state.summary = summary;
+      } catch (err) {
+        console.warn('Could not summarise the earlier messages, continuing without a new summary:', err.message);
+      }
     }
   }
 

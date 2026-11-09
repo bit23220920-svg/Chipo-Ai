@@ -126,8 +126,23 @@ const DEAD_END_PATTERNS = [
 const GEMINI_COOLDOWN_MS = Number(process.env.GEMINI_COOLDOWN_MS) || 60 * 1000;
 let geminiDownUntil = 0;
 
-function markGeminiDown() {
-  geminiDownUntil = Date.now() + GEMINI_COOLDOWN_MS;
+// How long Gemini asks us to wait ("retryDelay":"3930s" or "retry in 1h5m30s"),
+// so a spent daily quota is not hammered again a minute later.
+function retryDelayFrom(err) {
+  const text = String(err && err.message ? err.message : '');
+  let seconds = 0;
+  const exact = text.match(/"retryDelay":"(\d+(?:\.\d+)?)s"/);
+  if (exact) seconds = Number(exact[1]);
+  else {
+    const human = text.match(/retry in\s+(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+(?:\.\d+)?)s)?/i);
+    if (human) seconds = (Number(human[1]) || 0) * 3600 + (Number(human[2]) || 0) * 60 + (Number(human[3]) || 0);
+  }
+  if (!seconds && /per day|PerDay/i.test(text)) seconds = 3600;
+  return Math.min(seconds * 1000, 6 * 3600 * 1000);
+}
+
+function markGeminiDown(err) {
+  geminiDownUntil = Date.now() + Math.max(GEMINI_COOLDOWN_MS, retryDelayFrom(err));
 }
 
 function resetGeminiCooldown() {
@@ -525,7 +540,7 @@ async function askQuestion(question, history = [], options = {}) {
       // Gemini is unreachable or rejected the key: answer from the local engine.
       console.error('Gemini retrieval failed, switching to the local engine:', err.message);
       errorlog.record({ component: 'retrieval', kind: 'model_failure', error: err, detail: 'Gemini embeddings failed; searching with the local engine' });
-      markGeminiDown();
+      markGeminiDown(err);
       retrieval = 'local';
       topChunks = [];
     }
@@ -749,7 +764,7 @@ Chipo's answer:`;
         if (isPermanentModelError(err) || attempt === maxRetries) {
           console.error('Gemini could not answer, switching to the local engine:', err.message);
           errorlog.record({ component: 'gemini', kind: 'model_failure', error: err, detail: isPermanentModelError(err) ? 'Gemini rejected the request (will not retry)' : `Gemini still failing after ${maxRetries} tries` });
-          markGeminiDown();
+          markGeminiDown(err);
           break;
         }
         const waitTime = attempt * 5000;
@@ -903,4 +918,5 @@ module.exports = {
   isGreetingOrThanks,
   hasGeminiKey,
   resetGeminiCooldown,
+  retryDelayFrom,
 };

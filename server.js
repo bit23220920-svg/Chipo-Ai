@@ -90,7 +90,18 @@ function notifyTicketChange() {
   }
 }
 
+function describeModels() {
+  const llm = require('./llm.js');
+  if (String(process.env.CHIPO_ENGINE || '').toLowerCase() === 'local') return 'local engine only (CHIPO_ENGINE=local)';
+  const chain = [];
+  chain.push(llm.groqAvailable() ? `Groq (${llm.groqModel()})` : 'Groq NOT set up (GROQ_API_KEY missing)');
+  chain.push(String(process.env.GEMINI_API_KEY || '').trim() ? 'Gemini' : 'Gemini NOT set up (GEMINI_API_KEY missing)');
+  chain.push('local engine');
+  return chain.join(' -> ');
+}
+
 async function startServer() {
+  console.log(`Answer order: ${describeModels()}`);
   // Turso (and sometimes a cold MySQL) can reject the very first connection
   // with "fetch failed". Retry a few times before giving up so a brief network
   // blip does not stop the whole site from starting.

@@ -52,7 +52,28 @@ function groqAvailable() {
  * `.status` (the HTTP status, when there was one) and, for a busy Groq,
  * `.retryAfterMs`, so the caller can step aside for the right length of time.
  */
-async function groqGenerate(prompt, { temperature = 0.4, maxTokens = 1024 } = {}) {
+// gpt-oss models "think" before they answer and count that thinking against
+// the token limit, so give them room and ask for little of it.
+function isReasoningModel(model) {
+  return /gpt-oss/i.test(model);
+}
+
+async function groqGenerate(prompt, { temperature = 0.4, maxTokens } = {}) {
+  const model = groqModel();
+  const reasoning = isReasoningModel(model);
+  const limit = maxTokens || (reasoning ? 2048 : 1024);
+  try {
+    return await groqRequest(prompt, { model, temperature, limit, effort: reasoning ? 'low' : null });
+  } catch (err) {
+    // If this account's API refuses the reasoning setting, try once without it.
+    if (reasoning && err.status === 400 && /reasoning/i.test(err.message)) {
+      return groqRequest(prompt, { model, temperature, limit, effort: null });
+    }
+    throw err;
+  }
+}
+
+async function groqRequest(prompt, { model, temperature, limit, effort }) {
   const timeout = Number(process.env.GROQ_TIMEOUT_MS) || 25000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
@@ -65,10 +86,11 @@ async function groqGenerate(prompt, { temperature = 0.4, maxTokens = 1024 } = {}
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: groqModel(),
+        model,
         messages: [{ role: 'user', content: String(prompt) }],
         temperature,
-        max_tokens: maxTokens,
+        max_tokens: limit,
+        ...(effort ? { reasoning_effort: effort } : {}),
       }),
       signal: controller.signal,
     });
