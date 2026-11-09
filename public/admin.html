@@ -644,6 +644,9 @@
           <button class="btn-cancel" id="refreshTicketsBtn" type="button">Refresh</button>
         </div>
       </section>
+      <div class="nav-item" data-tab="analytics"><span class="label">Analytics</span></div>
+      <div class="nav-item" data-tab="feedback"><span class="label">Feedback</span></div>
+      <div class="nav-item" data-tab="documents"><span class="label">Documents</span></div>
       <div class="nav-item" data-tab="faqs"><span class="label">FAQs</span></div>
       <div class="nav-item" data-tab="departments"><span class="label">Departments</span></div>
       <div class="nav-item" data-tab="staff"><span class="label">Staff accounts</span></div>
@@ -669,6 +672,46 @@
         <div class="tab-panel" id="tab-tickets">
           <div class="panel">
             <div id="ticketsTableWrap"></div>
+          </div>
+        </div>
+
+        <!-- ---------- Analytics tab ---------- -->
+        <div class="tab-panel" id="tab-analytics" style="display:none;">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Usage and performance</h3>
+              <select id="analyticsDays" class="status-select">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+              </select>
+            </div>
+            <div id="analyticsWrap"></div>
+          </div>
+        </div>
+
+        <!-- ---------- Feedback tab ---------- -->
+        <div class="tab-panel" id="tab-feedback" style="display:none;">
+          <div class="panel">
+            <div class="subtab-row">
+              <button class="subtab active" data-fbtab="">All</button>
+              <button class="subtab" data-fbtab="complaint">Complaints</button>
+              <button class="subtab" data-fbtab="feedback">Ratings</button>
+            </div>
+            <div id="feedbackWrap"></div>
+          </div>
+        </div>
+
+        <!-- ---------- Documents tab ---------- -->
+        <div class="tab-panel" id="tab-documents" style="display:none;">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Knowledge documents</h3>
+              <label class="btn-add" for="docFile" style="cursor:pointer;">+ Upload document</label>
+              <input id="docFile" type="file" accept=".pdf,.txt,.md" style="display:none;" />
+            </div>
+            <p class="cell-muted" style="padding:0 24px;">Chipo answers from these files (PDF, TXT or Markdown, up to 15 MB). New files are picked up on the next question. On hosts with a temporary disk, uploaded files can disappear on redeploy, so keep the originals in the project's content folder as well.</p>
+            <div id="documentsWrap"></div>
           </div>
         </div>
 
@@ -759,6 +802,9 @@
 
   const TAB_META = {
     tickets: { title: 'Tickets', sub: 'Escalated questions waiting on a staff reply' },
+    analytics: { title: 'Analytics', sub: 'Questions, escalations, tickets and student feedback' },
+    feedback: { title: 'Feedback', sub: 'Ratings and complaints from students' },
+    documents: { title: 'Documents', sub: 'The files Chipo answers from' },
     faqs: { title: 'FAQs', sub: 'Answers Chipo treats as authoritative, on top of the PDF library' },
     departments: { title: 'Departments', sub: 'Who FAQs and tickets belong to' },
     staff: { title: 'Staff accounts', sub: 'Staff access by department' },
@@ -986,6 +1032,9 @@
     pageSub.textContent = TAB_META[tab].sub;
 
     if (tab === 'tickets') loadTickets();
+    if (tab === 'analytics') loadAnalytics();
+    if (tab === 'feedback') loadFeedback();
+    if (tab === 'documents') loadDocuments();
     if (tab === 'faqs') loadFaqs();
     if (tab === 'departments') loadDepartments();
     if (tab === 'staff') loadStaff();
@@ -1080,9 +1129,9 @@
       }
 
       let html = '<div class="table-wrap"><table><colgroup>' +
-        '<col style="width:14%"><col style="width:18%"><col style="width:20%"><col style="width:12%"><col style="width:12%"><col style="width:7%"><col style="width:9%"><col style="width:8%">' +
+        '<col style="width:12%"><col style="width:15%"><col style="width:20%"><col style="width:10%"><col style="width:8%"><col style="width:10%"><col style="width:6%"><col style="width:10%"><col style="width:9%">' +
         '</colgroup><thead><tr>' +
-        '<th>Reference</th><th>Student contact</th><th>Question</th><th>Department</th><th>Reason</th><th>Confidence</th><th>Status</th><th>Opened</th>' +
+        '<th>Reference</th><th>Student contact</th><th>Question</th><th>Department</th><th>Priority</th><th>Reason</th><th>Confidence</th><th>Status</th><th>Opened</th>' +
         '</tr></thead><tbody>';
 
       tickets.forEach((t) => {
@@ -1094,8 +1143,13 @@
           '</div></td>' +
           '<td class="cell-q">' + escapeHtml(t.question) +
             (t.conversationSummary ? '<div class="cell-q-summary"><strong>Conversation handover</strong><br>' + escapeHtml(t.conversationSummary) + '</div>' : '') +
+            ((t.conversationHistory || []).length ? '<details class="cell-q-summary"><summary><strong>Full conversation (' + t.conversationHistory.length + ' messages)</strong></summary>' +
+              t.conversationHistory.map((m) => '<div><strong>' + (m.role === 'user' ? 'Student' : 'Chipo') + ':</strong> ' + escapeHtml(m.content) + '</div>').join('') + '</details>' : '') +
           '</td>' +
           '<td>' + escapeHtml(t.departmentName || 'Unassigned') + '</td>' +
+          '<td><select class="status-select priority-select" data-id="' + escapeHtml(t.id) + '">' +
+            ['critical', 'high', 'medium', 'low'].map((p) => '<option value="' + p + '"' + (p === t.priority ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>').join('') +
+          '</select></td>' +
           '<td><span class="badge badge-' + t.reason + '">' + (REASON_LABEL[t.reason] || t.reason) + '</span></td>' +
           '<td class="cell-muted">' + (t.confidence === null ? '—' : t.confidence.toFixed(2)) + '</td>' +
           '<td>' +
@@ -1111,7 +1165,17 @@
       html += '</tbody></table></div>';
       wrap.innerHTML = html;
 
-      wrap.querySelectorAll('.status-select').forEach((sel) => {
+      wrap.querySelectorAll('.priority-select').forEach((sel) => {
+        sel.addEventListener('change', async () => {
+          try {
+            await api('PATCH', '/admin/tickets/' + sel.dataset.id + '/priority', { priority: sel.value });
+            showToast('Priority set to ' + sel.value + '.');
+            loadTickets();
+          } catch (err) { showToast(err.message, true); loadTickets(); }
+        });
+      });
+
+      wrap.querySelectorAll('.status-select:not(.priority-select)').forEach((sel) => {
         sel.addEventListener('change', async () => {
           const id = sel.dataset.id;
           const newStatus = sel.value;
@@ -1141,6 +1205,137 @@
       loadTickets({ silent: true });
     }
   }, 5000);
+
+
+  // ================= Analytics =================
+
+  document.getElementById('analyticsDays').addEventListener('change', loadAnalytics);
+
+  function statRows(obj, labels) {
+    const keys = Object.keys(obj || {});
+    if (!keys.length) return '<div class="cell-muted">No data yet.</div>';
+    const max = Math.max(...keys.map((k) => obj[k]), 1);
+    return keys.sort((a, b) => obj[b] - obj[a]).map((k) =>
+      '<div style="display:flex;align-items:center;gap:10px;margin:4px 0;"><span style="width:150px;">' + escapeHtml((labels && labels[k]) || k) + '</span>' +
+      '<span style="flex:1;background:rgba(148,163,184,.2);border-radius:6px;height:10px;"><span style="display:block;height:10px;border-radius:6px;background:var(--neon,#34d399);width:' + Math.round((obj[k] / max) * 100) + '%"></span></span>' +
+      '<strong>' + obj[k] + '</strong></div>'
+    ).join('');
+  }
+
+  async function loadAnalytics() {
+    const wrap = document.getElementById('analyticsWrap');
+    wrap.innerHTML = '<div class="empty-state">Loading…</div>';
+    try {
+      const d = await api('GET', '/admin/analytics?days=' + document.getElementById('analyticsDays').value);
+      const tile = (label, value) => '<div style="flex:1;min-width:140px;padding:14px;border:1px solid var(--border);border-radius:12px;"><div class="cell-muted">' + label + '</div><div style="font-size:1.6rem;font-weight:700;">' + value + '</div></div>';
+      const maxDay = Math.max(...d.questions.perDay.map((x) => x.questions), 1);
+      wrap.innerHTML =
+        '<div style="padding:16px 24px;">' +
+        '<div style="display:flex;flex-wrap:wrap;gap:12px;">' +
+          tile('Questions asked', d.questions.total) +
+          tile('Answered directly', d.questions.answeredDirectly) +
+          tile('Escalated to staff', d.questions.escalated + ' (' + d.questions.escalationRate + '%)') +
+          tile('Average confidence', d.questions.averageConfidence === null ? '—' : d.questions.averageConfidence) +
+          tile('Tickets opened', d.tickets.created) +
+          tile('Open right now', d.tickets.openNow) +
+          tile('Avg. time to resolve', d.tickets.averageResolutionHours === null ? '—' : d.tickets.averageResolutionHours + ' h') +
+          tile('Student satisfaction', d.feedback.satisfaction === null ? '—' : d.feedback.satisfaction + '%') +
+          tile('Complaints', d.feedback.complaints) +
+          tile('Registered students', d.students) +
+        '</div>' +
+        '<h4 style="margin:22px 0 8px;">Questions per day</h4>' +
+        '<div style="display:flex;align-items:flex-end;gap:3px;height:90px;">' +
+          d.questions.perDay.map((x) => '<div title="' + x.date + ': ' + x.questions + ' questions, ' + x.escalated + ' escalated" style="flex:1;background:var(--neon,#34d399);border-radius:3px 3px 0 0;min-height:2px;height:' + Math.max(Math.round((x.questions / maxDay) * 100), 2) + '%"></div>').join('') +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;margin-top:22px;">' +
+          '<div><h4>Tickets by department</h4>' + statRows(d.tickets.byDepartment) + '</div>' +
+          '<div><h4>Tickets by status</h4>' + statRows(d.tickets.byStatus, STATUS_LABEL) + '</div>' +
+          '<div><h4>Tickets by priority</h4>' + statRows(d.tickets.byPriority) + '</div>' +
+          '<div><h4>Why questions were escalated</h4>' + statRows(d.tickets.byReason, { low_confidence: 'Low confidence', manual_request: 'Asked for staff', wellbeing: 'Urgent - wellbeing' }) + '</div>' +
+          '<div><h4>Where answers came from</h4>' + statRows(d.questions.bySource) + '</div>' +
+        '</div></div>';
+    } catch (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message) + '</div>';
+    }
+  }
+
+  // ================= Feedback and complaints =================
+
+  let currentFeedbackKind = '';
+  document.querySelectorAll('.subtab[data-fbtab]').forEach((el) => {
+    el.addEventListener('click', () => {
+      currentFeedbackKind = el.dataset.fbtab;
+      document.querySelectorAll('.subtab[data-fbtab]').forEach((s) => s.classList.remove('active'));
+      el.classList.add('active');
+      loadFeedback();
+    });
+  });
+
+  async function loadFeedback() {
+    const wrap = document.getElementById('feedbackWrap');
+    wrap.innerHTML = '<div class="empty-state">Loading…</div>';
+    try {
+      const { feedback } = await api('GET', '/admin/feedback?limit=200' + (currentFeedbackKind ? '&kind=' + currentFeedbackKind : ''));
+      if (!feedback.length) { wrap.innerHTML = '<div class="empty-state">Nothing here yet.</div>'; return; }
+      wrap.innerHTML = feedback.map((f) =>
+        '<div class="log-row">' +
+          '<div class="log-top"><span class="log-actor">' +
+            (f.kind === 'complaint' ? 'Complaint' : (f.rating === 'up' ? 'Helpful' : 'Not helpful')) +
+            (f.studentId ? ' · signed-in student' : ' · public visitor') +
+          '</span><span class="log-time">' + formatDate(f.createdAt) + '</span></div>' +
+          (f.comment ? '<div>' + escapeHtml(f.comment) + '</div>' : '') +
+          (f.question ? '<div class="log-detail"><strong>Question:</strong> ' + escapeHtml(f.question) + '</div>' : '') +
+          (f.answer ? '<div class="log-detail"><strong>Answer:</strong> ' + escapeHtml(f.answer.slice(0, 500)) + '</div>' : '') +
+          (f.kind === 'complaint' ? '<div style="margin-top:6px;">' + (f.status === 'reviewed' ? '<span class="badge badge-resolved">Reviewed</span>' : '<button class="btn-cancel fb-review" data-id="' + f.id + '" type="button">Mark reviewed</button>') + '</div>' : '') +
+        '</div>'
+      ).join('');
+      wrap.querySelectorAll('.fb-review').forEach((b) => b.addEventListener('click', async () => {
+        try { await api('PATCH', '/admin/feedback/' + b.dataset.id + '/reviewed'); loadFeedback(); } catch (err) { showToast(err.message, true); }
+      }));
+    } catch (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message) + '</div>';
+    }
+  }
+
+  // ================= Knowledge documents =================
+
+  document.getElementById('docFile').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { showToast('That file is larger than 15 MB.', true); return; }
+    try {
+      const data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+        reader.onerror = () => reject(new Error('Could not read the file.'));
+        reader.readAsDataURL(file);
+      });
+      await api('POST', '/admin/documents', { filename: file.name, data });
+      showToast('Uploaded ' + file.name + '. Chipo will use it from the next question.');
+      loadDocuments();
+    } catch (err) { showToast(err.message, true); }
+  });
+
+  async function loadDocuments() {
+    const wrap = document.getElementById('documentsWrap');
+    wrap.innerHTML = '<div class="empty-state">Loading…</div>';
+    try {
+      const { documents } = await api('GET', '/admin/documents');
+      if (!documents.length) { wrap.innerHTML = '<div class="empty-state">No documents yet.</div>'; return; }
+      wrap.innerHTML = documents.map((d) =>
+        '<div class="log-row"><div class="log-top"><span class="log-actor">' + escapeHtml(d.filename) + '</span>' +
+        '<span class="log-time">' + Math.round(d.bytes / 1024) + ' KB · ' + formatDate(d.updatedAt) + '</span></div>' +
+        '<button class="btn-cancel doc-delete" data-name="' + escapeHtml(d.filename) + '" type="button">Remove</button></div>'
+      ).join('');
+      wrap.querySelectorAll('.doc-delete').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm('Remove ' + b.dataset.name + '? Chipo will stop answering from it.')) return;
+        try { await api('DELETE', '/admin/documents/' + encodeURIComponent(b.dataset.name)); loadDocuments(); } catch (err) { showToast(err.message, true); }
+      }));
+    } catch (err) {
+      wrap.innerHTML = '<div class="empty-state">' + escapeHtml(err.message) + '</div>';
+    }
+  }
 
   // ================= FAQs =================
 

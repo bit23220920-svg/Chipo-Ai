@@ -602,6 +602,10 @@
   .helpful-btn:disabled { cursor: default; }
   .helpful-btn svg { flex-shrink: 0; }
 
+  .feedback-box { display: flex; flex-direction: column; gap: 6px; font-size: 0.74rem; color: var(--text-muted); max-width: 320px; }
+  .feedback-box textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--border, #cbd5e1); border-radius: 8px; resize: vertical; }
+  .feedback-send { border: 1px solid currentColor; border-radius: 8px; padding: 4px 10px; align-self: flex-start; }
+
   .helpful-thanks {
     color: var(--green-deep);
     font-size: 0.72rem;

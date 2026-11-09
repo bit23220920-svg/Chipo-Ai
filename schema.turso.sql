@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS tickets (
   department_id TEXT,
   student_id TEXT NULL,
   subject TEXT NULL,
+  priority TEXT NOT NULL DEFAULT 'medium',
+  conversation_history TEXT NULL,
   status TEXT NOT NULL DEFAULT 'opened',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -155,4 +157,17 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
   FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL DEFAULT 'feedback',
+  rating TEXT NULL,
+  comment TEXT NULL,
+  question TEXT NULL,
+  answer TEXT NULL,
+  session_id TEXT NULL,
+  student_id TEXT NULL,
+  status TEXT NOT NULL DEFAULT 'new',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
