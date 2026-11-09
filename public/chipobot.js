@@ -181,6 +181,7 @@
   const STUDENT_TOKEN_KEY = 'chipo_student_token';
   let session = { token: null, student: null };
   let scope = 'site';
+  let lastAskedQuestion = '';
 
   function storedToken() {
     try { return sessionStorage.getItem(STUDENT_TOKEN_KEY); } catch (err) { return null; }
@@ -704,16 +705,59 @@
       helpfulBtn.setAttribute('aria-label', 'This answer was helpful');
       helpfulBtn.setAttribute('aria-pressed', 'false');
       helpfulBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h3Zm0 0 5-8a3 3 0 0 1 2 3v3h5.2a2 2 0 0 1 2 2.4l-1.6 9a2 2 0 0 1-2 1.6H7"/></svg><span>Helpful</span>';
-      helpfulBtn.addEventListener('click', () => {
-        helpfulBtn.disabled = true;
+      const askedQuestion = lastAskedQuestion;
+      const sendFeedback = (payload) => fetch('/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(scope === 'portal' && session.token ? { Authorization: 'Bearer ' + session.token } : {}),
+        },
+        body: JSON.stringify({ question: askedQuestion, answer: text, sessionId: conversationSessionId, ...payload }),
+      }).then((r) => r.ok).catch(() => false);
+
+      const notHelpfulBtn = document.createElement('button');
+      notHelpfulBtn.className = 'helpful-btn';
+      notHelpfulBtn.type = 'button';
+      notHelpfulBtn.setAttribute('aria-label', 'This answer was not helpful');
+      notHelpfulBtn.setAttribute('aria-pressed', 'false');
+      notHelpfulBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="transform:rotate(180deg)"><path d="M7 10v12H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h3Zm0 0 5-8a3 3 0 0 1 2 3v3h5.2a2 2 0 0 1 2 2.4l-1.6 9a2 2 0 0 1-2 1.6H7"/></svg><span>Not helpful</span>';
+
+      const done = (message, ...buttons) => {
+        buttons.forEach((b) => { b.disabled = true; });
+        const note = document.createElement('span');
+        note.className = 'helpful-thanks';
+        note.setAttribute('role', 'status');
+        note.textContent = message;
+        buttons[buttons.length - 1].insertAdjacentElement('afterend', note);
+      };
+
+      helpfulBtn.addEventListener('click', async () => {
         helpfulBtn.setAttribute('aria-pressed', 'true');
-        const thanks = document.createElement('span');
-        thanks.className = 'helpful-thanks';
-        thanks.setAttribute('role', 'status');
-        thanks.textContent = "I'm glad I could help!";
-        helpfulBtn.insertAdjacentElement('afterend', thanks);
+        await sendFeedback({ kind: 'feedback', rating: 'up' });
+        done("I'm glad I could help!", helpfulBtn, notHelpfulBtn);
+      });
+
+      notHelpfulBtn.addEventListener('click', async () => {
+        notHelpfulBtn.setAttribute('aria-pressed', 'true');
+        helpfulBtn.disabled = true;
+        notHelpfulBtn.disabled = true;
+        await sendFeedback({ kind: 'feedback', rating: 'down' });
+        const box = document.createElement('div');
+        box.className = 'feedback-box';
+        box.innerHTML = '<label>Sorry about that. Tell us what went wrong (optional):</label><textarea rows="2" maxlength="2000"></textarea><button type="button" class="helpful-btn feedback-send">Send complaint</button>';
+        const area = box.querySelector('textarea');
+        box.querySelector('.feedback-send').addEventListener('click', async (event) => {
+          const comment = area.value.trim();
+          if (!comment) { area.focus(); return; }
+          event.currentTarget.disabled = true;
+          const ok = await sendFeedback({ kind: 'complaint', comment });
+          box.textContent = ok ? 'Thank you. Your complaint has been passed to the university.' : 'Sorry, that could not be sent. Please try again later.';
+          box.className = 'helpful-thanks';
+        });
+        notHelpfulBtn.insertAdjacentElement('afterend', box);
       });
       col.appendChild(helpfulBtn);
+      col.appendChild(notHelpfulBtn);
 
       if (meta.needsHuman) {
         if (meta.ticket) {
@@ -877,6 +921,7 @@
       // Inside the portal Chipo talks to /portal/ask and carries the
       // student's session. Everywhere else it talks to /ask, which grants no
       // portal access at all — so no session is sent.
+      lastAskedQuestion = question;
       const inPortal = scope === 'portal';
       let res;
       try {

@@ -26,6 +26,8 @@ async function main() {
       ['tickets', 'conversation_summary', 'TEXT NULL'],
       ['tickets', 'student_id', 'TEXT NULL'],
       ['tickets', 'subject', 'TEXT NULL'],
+      ['tickets', 'priority', "TEXT NOT NULL DEFAULT 'medium'"],
+      ['tickets', 'conversation_history', 'TEXT NULL'],
       ['chat_messages', 'student_id', 'TEXT NULL'],
       ['chat_messages', 'student_number', 'TEXT NULL'],
     ];
@@ -49,6 +51,7 @@ async function main() {
       'CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id)',
       'CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at)',
       'CREATE INDEX IF NOT EXISTS idx_chat_messages_student ON chat_messages(student_id)',
+      'CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at)',
       'CREATE INDEX IF NOT EXISTS idx_system_logs_created ON system_logs(created_at)',
       'CREATE INDEX IF NOT EXISTS idx_announcements_published ON announcements(published_at)',
     ];
@@ -85,6 +88,14 @@ async function main() {
     const [ticketSubjectColumns] = await pool.query("SHOW COLUMNS FROM tickets LIKE 'subject'");
     if (!ticketSubjectColumns.length) {
       await pool.query('ALTER TABLE tickets ADD COLUMN subject VARCHAR(255) NULL');
+    }
+    const [ticketPriorityColumns] = await pool.query("SHOW COLUMNS FROM tickets LIKE 'priority'");
+    if (!ticketPriorityColumns.length) {
+      await pool.query("ALTER TABLE tickets ADD COLUMN priority VARCHAR(10) NOT NULL DEFAULT 'medium'");
+    }
+    const [ticketHistoryColumns] = await pool.query("SHOW COLUMNS FROM tickets LIKE 'conversation_history'");
+    if (!ticketHistoryColumns.length) {
+      await pool.query('ALTER TABLE tickets ADD COLUMN conversation_history MEDIUMTEXT NULL');
     }
     // Tickets used to start as "open"; the status is now "opened".
     await pool.query("ALTER TABLE tickets ALTER COLUMN status SET DEFAULT 'opened'");

@@ -247,3 +247,12 @@ Good to know:
 - `CHIPO_ENGINE=local` turns off every outside model, for testing.
 - Never put a key in the code or in chat. Keys live only in Render's **Environment** settings (or `.env` on your own machine).
 
+
+## Requirements-alignment features
+
+- **Ticket priority** (Low / Medium / High / Critical) is chosen automatically from the wording and the reason for escalation; staff can change it on the Tickets tab. The most urgent tickets are listed first, and each ticket carries the recent conversation.
+- **Feedback and complaints**: the chat's Helpful / Not helpful buttons and the complaint box are stored and shown on the admin **Feedback** tab.
+- **Analytics** tab: questions, escalation rate, tickets by department / status / priority, time to resolve, satisfaction.
+- **Documents** tab: upload or remove PDF, TXT or Markdown files that Chipo answers from. Files go in the `content/` folder. On a host with a temporary disk (Render's free plan) uploaded files vanish on redeploy, so also commit the originals to `content/`.
+- **Email notifications** are optional. Set `SMTP_HOST`, `SMTP_PORT` (587 or 465), `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`; with none set, nothing is sent. Students with an email on their ticket get a message when the ticket is opened and each time its status changes.
+- Run `node migrate.js` once (Render does it on deploy) to add the new columns and the `feedback` table.

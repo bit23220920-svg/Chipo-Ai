@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS tickets (
   department_id CHAR(36),
   student_id CHAR(36) NULL,
   subject VARCHAR(255) NULL,
+  priority VARCHAR(10) NOT NULL DEFAULT 'medium',
+  conversation_history MEDIUMTEXT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'opened',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -171,4 +173,19 @@ CREATE TABLE IF NOT EXISTS notifications (
   INDEX idx_notifications_student (student_id, is_read, id),
   CONSTRAINT fk_notifications_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
   CONSTRAINT fk_notifications_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS feedback (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  kind VARCHAR(20) NOT NULL DEFAULT 'feedback',
+  rating VARCHAR(10) NULL,
+  comment TEXT NULL,
+  question TEXT NULL,
+  answer TEXT NULL,
+  session_id VARCHAR(64) NULL,
+  student_id CHAR(36) NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'new',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_feedback_created (created_at),
+  INDEX idx_feedback_kind (kind, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

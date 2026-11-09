@@ -5,6 +5,10 @@ const crypto = require('crypto');
 
 const ask = require('./ask.js');
 const tickets = require('./tickets.js');
+const mailer = require('./mailer.js');
+const feedback = require('./feedback.js');
+const analytics = require('./analytics.js');
+const documents = require('./documents.js');
 const faqs = require('./faqs.js');
 const departments = require('./departments.js');
 const staffAuth = require('./staffAuth.js');
@@ -344,7 +348,7 @@ async function studentTicketAnswer(student, reference) {
  *          contact: {name?: string, email?: string, phone?: string},
  *          routingContext?: string[], conversationSummary?: string}} fields
  */
-async function routeAndCreateTicket({ question, answer, confidence, reason, departmentId, contact, routingContext = [], conversationSummary, forceDepartmentId = null, studentId = null }) {
+async function routeAndCreateTicket({ question, answer, confidence, reason, departmentId, contact, routingContext = [], conversationSummary, conversationHistory, forceDepartmentId = null, studentId = null }) {
   const availableDepartments = await departments.listDepartments();
   const preferredDepartmentId = availableDepartments.some((department) => department.id === departmentId)
     ? departmentId
@@ -364,11 +368,13 @@ async function routeAndCreateTicket({ question, answer, confidence, reason, depa
     reason,
     departmentId: routedDepartmentId,
     conversationSummary,
+    conversationHistory,
     studentId,
   });
 
   if (!existing) notifyTicketChange();
   ticket.departmentName = availableDepartments.find((department) => department.id === routedDepartmentId)?.name || null;
+  if (!existing) mailer.ticketCreated(ticket).catch(() => {});
   return ticket;
 }
 
@@ -565,6 +571,11 @@ async function chatResponse(req, student) {
           contact,
           routingContext: safeHistory.map((turn) => turn.question.slice(0, 1000)),
           conversationSummary: summarizeTicketHandover(safeHistory, question, result.answer, conversation.summary),
+          conversationHistory: [
+            ...conversation.messages,
+            { role: 'user', content: question },
+            ...(result.answer ? [{ role: 'assistant', content: result.answer }] : []),
+          ],
         });
       } catch (err) {
         console.error('Could not open the ticket:', err.message);
@@ -707,6 +718,7 @@ app.post('/tickets', rateLimit({ name: 'tickets', windowMs: 10 * 60 * 1000, max:
     contact: { name, email, phone },
     routingContext,
     conversationSummary,
+    conversationHistory: tickets.cleanHistory(body.conversationHistory),
   });
   res.status(201).json({ ticket: { id: ticket.id, departmentName: ticket.departmentName, status: ticket.status } });
 }));
@@ -959,10 +971,80 @@ app.patch('/admin/tickets/:id/status', requireStaffAuth, handle(async (req, res)
   const ticket = await tickets.changeStatus({ ticketId: req.params.id, status, note, staff });
   if (!ticket) return res.status(404).json({ error: 'No ticket found with that reference.' });
   notifyTicketChange();
+  mailer.ticketStatusChanged(ticket, typeof note === 'string' ? note.trim() : '').catch(() => {});
   systemLog
     .logEvent({ actor: req.staff.username, action: 'ticket.status_change', detail: `${ticket.id} -> ${ticket.status}` })
     .catch((err) => console.error('Could not log system event:', err.message));
   res.json({ ticket });
+}));
+
+app.patch('/admin/tickets/:id/priority', requireStaffAuth, handle(async (req, res) => {
+  const { priority, note } = req.body || {};
+  const staff = await staffAuth.getStaffProfile(req.staff.sub);
+  if (!staff) return res.status(401).json({ error: 'Staff account no longer exists.' });
+  const ticket = await tickets.changePriority({ ticketId: req.params.id, priority, note, staff });
+  if (!ticket) return res.status(404).json({ error: 'No ticket found with that reference.' });
+  notifyTicketChange();
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'ticket.priority_change', detail: `${ticket.id} -> ${ticket.priority}` })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.json({ ticket });
+}));
+
+// ==================== Feedback and complaints ====================
+
+// Anyone may rate an answer or file a complaint. A signed-in student's
+// feedback is tied to their account; the public site's is anonymous.
+app.post('/feedback', rateLimit({ name: 'feedback', windowMs: 10 * 60 * 1000, max: 60 }), handle(async (req, res) => {
+  const body = req.body || {};
+  const student = await studentSessionFromRequest(req).catch(() => null);
+  const saved = await feedback.record({
+    kind: body.kind,
+    rating: body.rating,
+    comment: body.comment,
+    question: body.question,
+    answer: body.answer,
+    sessionId: body.sessionId,
+    studentId: student ? student.id : null,
+  });
+  res.status(201).json({ ok: true, id: saved.id });
+}));
+
+app.get('/admin/feedback', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  res.json({ feedback: await feedback.list({ kind: req.query.kind, limit: req.query.limit }) });
+}));
+
+app.patch('/admin/feedback/:id/reviewed', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const ok = await feedback.markReviewed(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'No feedback found with that id.' });
+  res.json({ ok: true });
+}));
+
+// ==================== Admin: analytics and knowledge documents ====================
+
+app.get('/admin/analytics', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  res.json(await analytics.overview({ days: req.query.days }));
+}));
+
+app.get('/admin/documents', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  res.json({ documents: documents.list() });
+}));
+
+app.post('/admin/documents', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const saved = documents.save({ filename: (req.body || {}).filename, data: (req.body || {}).data });
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'document.upload', detail: saved.filename })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.status(201).json({ document: saved, note: 'Chipo will re-read its documents on the next question.' });
+}));
+
+app.delete('/admin/documents/:filename', requireStaffAuth, requireAdminStaff, handle(async (req, res) => {
+  const removed = documents.remove(req.params.filename);
+  if (!removed) return res.status(404).json({ error: 'No such document.' });
+  systemLog
+    .logEvent({ actor: req.staff.username, action: 'document.delete', detail: req.params.filename })
+    .catch((err) => console.error('Could not log system event:', err.message));
+  res.json({ ok: true });
 }));
 
 // ==================== Admin: staff accounts ====================

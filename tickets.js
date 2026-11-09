@@ -6,6 +6,7 @@
 
 const crypto = require('crypto');
 const { query, transaction } = require('./db.js');
+const { detectPriority, normalizePriority, PRIORITY_RANK, PRIORITIES, PRIORITY_LABELS } = require('./priority.js');
 
 // A ticket only ever moves forward through these, in this order.
 const VALID_STATUSES = ['opened', 'in_progress', 'resolved'];
@@ -27,6 +28,24 @@ function isForwardMove(from, to) {
   return VALID_STATUSES.indexOf(normalizeStatus(to)) > VALID_STATUSES.indexOf(normalizeStatus(from));
 }
 const VALID_REASONS = ['low_confidence', 'manual_request', 'wellbeing'];
+
+// How many earlier messages travel with a ticket, and how long each may be.
+const HISTORY_LIMIT = 20;
+const HISTORY_MESSAGE_CHARS = 1500;
+
+/** Keep only well-formed {role, content} messages, trimmed. */
+function cleanHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-HISTORY_LIMIT)
+    .map((m) => ({ role: m.role, content: m.content.trim().slice(0, HISTORY_MESSAGE_CHARS) }));
+}
+
+function parseHistory(value) {
+  if (!value) return [];
+  try { return cleanHistory(JSON.parse(value)); } catch (err) { return []; }
+}
 
 // Short, human-readable reference the student can quote later,
 // e.g. "TCK-0123456789ABCDEF". Not sequential on purpose, so one student can't
@@ -50,6 +69,9 @@ function rowToTicket(row) {
     departmentName: row.department_name || null,
     studentId: row.student_id || null,
     subject: row.subject || null,
+    priority: normalizePriority(row.priority) || 'medium',
+    priorityLabel: PRIORITY_LABELS[normalizePriority(row.priority) || 'medium'],
+    conversationHistory: parseHistory(row.conversation_history),
     status: normalizeStatus(row.status),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -90,7 +112,7 @@ function normalizeContact({ name, email, phone } = {}) {
  * @param {'low_confidence'|'manual_request'|'wellbeing'} [fields.reason]
  * @param {string} [fields.departmentId] - Routed department, if known.
  */
-async function createTicket({ name, email, phone, question, answer, confidence, reason, departmentId, conversationSummary, studentId, subject } = {}) {
+async function createTicket({ name, email, phone, question, answer, confidence, reason, departmentId, conversationSummary, studentId, subject, priority, conversationHistory } = {}) {
   if (!question || !question.trim()) throw badRequest('A question is required to open a ticket.');
   if (question.trim().length > 10000) throw badRequest('Question must be 10,000 characters or fewer.');
   if (conversationSummary !== undefined && conversationSummary !== null && typeof conversationSummary !== 'string') {
@@ -108,9 +130,13 @@ async function createTicket({ name, email, phone, question, answer, confidence, 
   const safeSubject = (typeof subject === 'string' && subject.trim() ? subject : question)
     .replace(/\s+/g, ' ').trim().slice(0, 120);
 
+  const safePriority = normalizePriority(priority)
+    || detectPriority({ question, reason: safeReason, conversationSummary });
+  const history = cleanHistory(conversationHistory);
+
   await query(
-    `INSERT INTO tickets (id, name, email, phone, question, conversation_summary, last_answer, confidence, reason, department_id, student_id, subject, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+    `INSERT INTO tickets (id, name, email, phone, question, conversation_summary, last_answer, confidence, reason, department_id, student_id, subject, priority, conversation_history, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
     [
       id,
       contact.name,
@@ -124,6 +150,8 @@ async function createTicket({ name, email, phone, question, answer, confidence, 
       departmentId || null,
       studentId || null,
       safeSubject,
+      safePriority,
+      history.length ? JSON.stringify(history) : null,
       'opened',
     ]
   );
@@ -183,7 +211,10 @@ async function listTickets({ status, departmentId, isAdmin = true } = {}) {
      ${where} ORDER BY tickets.created_at DESC`,
     params
   );
-  return rows.map(rowToTicket);
+  const list = rows.map(rowToTicket);
+  // Most urgent first; within a priority the newest stays on top (the query
+  // already returned newest first and Array.sort is stable).
+  return list.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
 }
 
 async function getTicket(id, departmentId = null) {
@@ -277,6 +308,33 @@ async function changeStatus({ ticketId, status, note, staff } = {}) {
   });
 }
 
+/**
+ * Staff change a ticket's priority. Recorded as a ticket event (with the same
+ * status) so the history shows who changed it and why.
+ */
+async function changePriority({ ticketId, priority, note, staff } = {}) {
+  const next = normalizePriority(priority);
+  if (!next) throw badRequest(`Invalid priority "${priority}". Must be one of: ${PRIORITIES.join(', ')}`);
+  if (!staff || !staff.id) throw badRequest('A staff member is required to change a ticket.');
+  const cleanNote = typeof note === 'string' ? note.trim() : '';
+  if (cleanNote.length > 1000) throw badRequest('A note must be 1,000 characters or fewer.');
+
+  return transaction(async (tx) => {
+    const { rows } = await tx.query(`${TICKET_SELECT} WHERE tickets.id = $1`, [ticketId]);
+    const row = rows[0];
+    const mayAct = row && (staff.isAdmin || (staff.departmentId && row.department_id === staff.departmentId));
+    if (!mayAct) return null;
+    if (normalizePriority(row.priority) === next) return rowToTicket(row);
+    await tx.query(`UPDATE tickets SET priority = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [next, ticketId]);
+    await tx.query(
+      `INSERT INTO ticket_events (ticket_id, status, note, staff_id) VALUES ($1, $2, $3, $4)`,
+      [ticketId, normalizeStatus(row.status), `Priority set to ${PRIORITY_LABELS[next]}.${cleanNote ? ' ' + cleanNote : ''}`, staff.id]
+    );
+    const fresh = await tx.query(`${TICKET_SELECT} WHERE tickets.id = $1`, [ticketId]);
+    return rowToTicket(fresh.rows[0]);
+  });
+}
+
 /** The tickets that belong to one student, newest first. Never anyone else's. */
 async function listStudentTickets(studentId, { limit = 50 } = {}) {
   if (!studentId) return [];
@@ -324,6 +382,8 @@ module.exports = {
   listTickets,
   getTicket,
   changeStatus,
+  changePriority,
+  cleanHistory,
   listStudentTickets,
   getStudentTicket,
   listTicketEvents,
